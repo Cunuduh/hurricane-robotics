@@ -28,9 +28,9 @@ int quad_curve(int input) {
 }
 int decelerate(int current, int prev) {
 	static int brake_dir = 0;
-	if (current == 0) {
+	if (!current) {
 		int brake_force = std::abs(prev);
-		if (brake_dir == 0) {
+		if (!brake_dir) {
 			brake_dir = (prev > 0) ? -1 : 1;
 		}
 		if (brake_force > 64) {
@@ -56,7 +56,7 @@ void opcontrol() {
 	while (true) {
 		int left_input = quad_curve(master.get_analog(ANALOG_LEFT_Y));
 		int right_input = quad_curve(master.get_analog(ANALOG_RIGHT_Y));
-		int intake_input = master.get_digital(DIGITAL_L1) - master.get_digital(DIGITAL_L2);
+		int intake_input = master.get_digital(DIGITAL_L2) - master.get_digital(DIGITAL_R2);
 		int left_speed = decelerate(left_input, prev_left);
 		int right_speed = decelerate(right_input, prev_right);
 
