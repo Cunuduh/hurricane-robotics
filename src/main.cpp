@@ -91,7 +91,7 @@ void opcontrol() {
 		int battery_voltage = pros::battery::get_voltage();
 		int battery_current = pros::battery::get_current();
 
-		pros::lcd::set_text(3, "Average Temp: " + std::to_string((left_temp_avg + right_temp_avg) / 2));
+		pros::lcd::set_text(3, "Average Temp: " + std::to_string((left_temp_avg + right_temp_avg + intake_temp) / 3));
 		pros::lcd::set_text(4, "Battery V: " + std::to_string(battery_voltage));
 		pros::lcd::set_text(5, "Battery C: " + std::to_string(battery_current));
 
