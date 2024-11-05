@@ -47,9 +47,9 @@ int decelerate(int current, int prev) {
 }
 void opcontrol() {
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
-	pros::MotorGroup left_motors({-1, -3, 5});
-	pros::MotorGroup right_motors({2, 4, -6});
-	pros::Motor intake(-7);
+	pros::MotorGroup left_motors({-1, -3, 5}, pros::v5::MotorGears::blue);
+	pros::MotorGroup right_motors({2, 4, -6}, pros::v5::MotorGears::blue);
+	pros::Motor intake(-7, pros::v5::MotorGears::green);
 	static int prev_left = 0;
 	static int prev_right = 0;
 
