@@ -26,18 +26,15 @@ int quad_curve(int input) {
 	float curved = norm * norm * sign;
 	return static_cast<int>(curved * 127.0f);
 }
-int decelerate(int current, int prev) {
+double decelerate(int current, double prev) {
 	static int brake_dir = 0;
 	if (!current) {
-		int brake_force = std::abs(prev);
+		double brake_force = std::abs(prev);
 		if (!brake_dir) {
 			brake_dir = (prev > 0) ? -1 : 1;
 		}
-		if (brake_force > 64) {
-			return brake_dir * (brake_force - 8);
-		}
-		else if (brake_force > 16) {
-			return brake_dir * (brake_force / 2);
+		if (brake_force > 0.025) {
+			return brake_dir * (brake_force - 0.025);
 		}
 		brake_dir = 0;
 		return 0;
@@ -50,8 +47,8 @@ void opcontrol() {
 	pros::MotorGroup left_motors({-1, -3, 5}, pros::v5::MotorGears::blue);
 	pros::MotorGroup right_motors({2, 4, -6}, pros::v5::MotorGears::blue);
 	pros::Motor intake(-7, pros::v5::MotorGears::green);
-	static int prev_left = 0;
-	static int prev_right = 0;
+	static double prev_left = 0;
+	static double prev_right = 0;
 	static bool intake_running = false;
 
 	while (true) {
@@ -66,20 +63,20 @@ void opcontrol() {
 		}
 		
 		int intake_power = 0;
-		if (master.get_digital(DIGITAL_R1)) {
+		if (master.get_digital(DIGITAL_L1)) {
 			intake_power = -127;
 		} else if (intake_running) {
 			intake_power = 127;
 		}
 
-		int left_speed = decelerate(left_input, prev_left);
-		int right_speed = decelerate(right_input, prev_right);
+		double left_speed = decelerate(left_input, prev_left);
+		double right_speed = decelerate(right_input, prev_right);
 
 		prev_left = left_speed;
 		prev_right = right_speed;
 
-		left_motors.move(left_speed);
-		right_motors.move(right_speed);
+		left_motors.move(static_cast<int>(left_speed));
+		right_motors.move(static_cast<int>(right_speed));
 		intake.move(intake_power);
 
 		std::vector<double> left_temp = left_motors.get_temperature_all();
@@ -95,6 +92,6 @@ void opcontrol() {
 		pros::lcd::set_text(4, "Battery V: " + std::to_string(battery_voltage));
 		pros::lcd::set_text(5, "Battery I: " + std::to_string(battery_current));
 		pros::lcd::set_text(6, "Battery P: " + std::to_string(battery_voltage * battery_current));
-		pros::delay(5);
+		pros::delay(3);
 	}
 }
