@@ -48,29 +48,28 @@ void opcontrol() {
 	pros::MotorGroup right_motors({2, 4, -6}, pros::v5::MotorGears::blue);
 	pros::Motor intake(-7, pros::v5::MotorGears::green);
 	pros::ADIDigitalOut solenoid('A');
+	pros::ADIDigitalOut solenoid_2('B');
 	static double prev_left = 0;
 	static double prev_right = 0;
+	static int intake_power = 0;
 	static bool intake_running = false;
 	static bool solenoid_state = false;
+	static bool solenoid_2_state = false;
 
 	while (true) {
 		int left_input = quad_curve(master.get_analog(ANALOG_LEFT_Y));
 		int right_input = quad_curve(master.get_analog(ANALOG_RIGHT_Y));
 		
 		if (master.get_digital_new_press(DIGITAL_L2)) {
-			intake_running = true;
+			intake_running = !intake_running;
+			intake_power = (intake_running) ? 127 : 0;
 		}
 		if (master.get_digital_new_press(DIGITAL_R2)) {
-			intake_running = false;
+			intake_power = (intake_power == 127) ? -127 : 127;
 		}
-		
-		int intake_power = 0;
-		if (master.get_digital(DIGITAL_L1)) {
-			intake_power = -127;
-		} else if (intake_running) {
-			intake_power = 127;
+		if (master.get_digital_new_press(DIGITAL_L1)) {
+			solenoid_2.set_value(!solenoid_2_state);
 		}
-
 		if (master.get_digital_new_press(DIGITAL_R1)) {
 			solenoid.set_value(!solenoid_state);
 		}
