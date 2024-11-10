@@ -47,9 +47,11 @@ void opcontrol() {
 	pros::MotorGroup left_motors({-1, -3, 5}, pros::v5::MotorGears::blue);
 	pros::MotorGroup right_motors({2, 4, -6}, pros::v5::MotorGears::blue);
 	pros::Motor intake(-7, pros::v5::MotorGears::green);
+	pros::ADIDigitalOut solenoid('A');
 	static double prev_left = 0;
 	static double prev_right = 0;
 	static bool intake_running = false;
+	static bool solenoid_state = false;
 
 	while (true) {
 		int left_input = quad_curve(master.get_analog(ANALOG_LEFT_Y));
@@ -69,14 +71,20 @@ void opcontrol() {
 			intake_power = 127;
 		}
 
-		double left_speed = decelerate(left_input, prev_left);
-		double right_speed = decelerate(right_input, prev_right);
+		if (master.get_digital_new_press(DIGITAL_R1)) {
+			solenoid.set_value(!solenoid_state);
+		}
 
+		//int left_speed = decelerate(left_input, prev_left);
+		//int right_speed = decelerate(right_input, prev_right);
+		int left_speed = left_input;
+		int right_speed = right_input;
+		
 		prev_left = left_speed;
 		prev_right = right_speed;
 
-		left_motors.move(static_cast<int>(left_speed));
-		right_motors.move(static_cast<int>(right_speed));
+		left_motors.move(left_speed);
+		right_motors.move(right_speed);
 		intake.move(intake_power);
 
 		std::vector<double> left_temp = left_motors.get_temperature_all();
