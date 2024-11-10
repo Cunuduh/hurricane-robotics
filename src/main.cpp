@@ -79,7 +79,7 @@ void opcontrol() {
 		//int right_speed = decelerate(right_input, prev_right);
 		int left_speed = left_input;
 		int right_speed = right_input;
-		
+
 		prev_left = left_speed;
 		prev_right = right_speed;
 
@@ -100,6 +100,6 @@ void opcontrol() {
 		pros::lcd::set_text(4, "Battery V: " + std::to_string(battery_voltage));
 		pros::lcd::set_text(5, "Battery I: " + std::to_string(battery_current));
 		pros::lcd::set_text(6, "Battery P: " + std::to_string(battery_voltage * battery_current));
-		pros::delay(3);
+		pros::delay(5);
 	}
 }
