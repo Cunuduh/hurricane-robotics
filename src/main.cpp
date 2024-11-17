@@ -35,8 +35,8 @@ int quad_curve(int input)
 void opcontrol()
 {
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
-	pros::MotorGroup left_motors({-1, -3, -5}, pros::v5::MotorGears::blue);
-	pros::MotorGroup right_motors({2, 4, 6}, pros::v5::MotorGears::blue);
+	pros::MotorGroup left_motors({-1, -3, 5}, pros::v5::MotorGears::blue);
+	pros::MotorGroup right_motors({2, 4, -6}, pros::v5::MotorGears::blue);
 	pros::Motor intake(21, pros::v5::MotorGears::green);
 	pros::ADIDigitalOut solenoid('A');
 	static int intake_power = 0;
