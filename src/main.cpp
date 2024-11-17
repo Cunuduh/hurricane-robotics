@@ -37,7 +37,7 @@ void opcontrol()
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
 	pros::MotorGroup left_motors({-1, -3, -5}, pros::v5::MotorGears::blue);
 	pros::MotorGroup right_motors({2, 4, 6}, pros::v5::MotorGears::blue);
-	pros::Motor intake(7, pros::v5::MotorGears::green);
+	pros::Motor intake(21, pros::v5::MotorGears::green);
 	pros::ADIDigitalOut solenoid('A');
 	static int intake_power = 0;
 	static bool intake_running = false;
@@ -50,12 +50,21 @@ void opcontrol()
 
 		if (master.get_digital_new_press(DIGITAL_L2))
 		{
-			intake_running = !intake_running;
-			intake_power = (intake_running) ? 127 : 0;
+			intake_running = true;
+			intake_power = 127;
 		}
 		if (master.get_digital_new_press(DIGITAL_R2))
 		{
-			intake_power = -intake_power;
+			intake_running = false;
+			intake_power = 0;
+		}
+		if (master.get_digital(DIGITAL_L1))
+		{
+			intake_power = -127;
+		}
+		else
+		{
+			intake_power = intake_running ? 127 : 0;
 		}
 		if (master.get_digital_new_press(DIGITAL_R1))
 		{
@@ -63,12 +72,8 @@ void opcontrol()
 			solenoid.set_value(solenoid_state);
 		}
 
-		int left_speed = left_input;
-		int right_speed = right_input;
-
-
-		left_motors.move(static_cast<int>(left_speed));
-		right_motors.move(static_cast<int>(right_speed));
+		left_motors.move(left_input);
+		right_motors.move(right_input);
 		intake.move(intake_power);
 
 		std::vector<double> left_temp = left_motors.get_temperature_all();
