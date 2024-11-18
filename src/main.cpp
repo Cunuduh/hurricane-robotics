@@ -23,8 +23,20 @@ void initialize()
 }
 void disabled() {}
 void competition_initialize() {}
-void autonomous() {}
+void autonomous()
+{
+	std::shared_ptr<okapi::ChassisController> chassis =
+		okapi::ChassisControllerBuilder()
+			.withMotors({-1, -3, 5}, {2, 4, -6})
+			.withDimensions(okapi::AbstractMotor::gearset::blue, {{3.25_in, 15_in}, okapi::imev5BlueTPR})
+			.build();
 
+	for (int i = 0; i < 4; i++) {
+		chassis->moveDistance(24_in);
+		chassis->turnAngle(90_deg);
+		pros::delay(100);
+	}
+}
 int quad_curve(int input)
 {
 	float norm = input / 127.0f;
@@ -85,6 +97,7 @@ void opcontrol()
 		int battery_voltage = pros::battery::get_voltage();
 		int battery_current = pros::battery::get_current();
 
+		pros::lcd::set_text(2, "Intake Temp: " + std::to_string(intake_temp));
 		pros::lcd::set_text(3, "Average Temp: " + std::to_string((left_temp_avg + right_temp_avg + intake_temp) / 3));
 		pros::lcd::set_text(4, "Battery V: " + std::to_string(battery_voltage));
 		pros::lcd::set_text(5, "Battery I: " + std::to_string(battery_current));
