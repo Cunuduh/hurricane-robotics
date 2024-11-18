@@ -25,7 +25,7 @@ void disabled() {}
 void competition_initialize() {}
 void autonomous()
 {
-	pros::Motor intake(-21, pros::v5::MotorGears::green);
+	pros::Motor intake(21, pros::v5::MotorGears::green);
 	pros::ADIDigitalOut solenoid('A');
 	std::shared_ptr<okapi::ChassisController> chassis =
 		okapi::ChassisControllerBuilder()
@@ -34,11 +34,11 @@ void autonomous()
 			.build();
 
 	chassis->moveDistance(-0.5_ft);
-	chassis->turnAngle(22.5_deg);
+	chassis->turnAngle(45_deg);
 	pros::delay(100);
 	chassis->moveDistance(-3.1_ft); // sqrt (2^2 + 2^2) = 2.83
 	solenoid.set_value(true);
-	chassis->turnAngle(-112.5_deg);
+	chassis->turnAngle(45_deg);
 	intake.move(127);
 	pros::delay(100);
 	chassis->moveDistance(3_ft);
@@ -56,7 +56,7 @@ void opcontrol()
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
 	pros::MotorGroup left_motors({-1, -3, 5}, pros::v5::MotorGears::blue);
 	pros::MotorGroup right_motors({2, 4, -6}, pros::v5::MotorGears::blue);
-	pros::Motor intake(-21, pros::v5::MotorGears::green);
+	pros::Motor intake(21, pros::v5::MotorGears::green);
 	pros::ADIDigitalOut solenoid('A');
 	static int intake_power = 0;
 	static bool intake_running = false;
