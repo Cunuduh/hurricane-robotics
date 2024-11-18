@@ -70,7 +70,7 @@ void opcontrol()
 		{
 			autonomous();
 		}
-		if (master.get_digital_new_press(DIGITAL_L2))
+		if (master.get_digital_new_press(DIGITAL_L2) && !solenoid_state)
 		{
 			intake_running = true;
 			intake_power = 127;
