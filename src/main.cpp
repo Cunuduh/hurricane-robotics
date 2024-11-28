@@ -225,20 +225,20 @@ void opcontrol()
 			intake.move(intake_power);
 		}
 
-		std::vector<double> left_temp = left_motors.get_temperature_all();
-		std::vector<double> right_temps = right_motors.get_temperature_all();
-		double left_temp_avg = std::accumulate(left_temp.begin(), left_temp.end(), 0.0) / left_temp.size();
-		double right_temp_avg = std::accumulate(right_temps.begin(), right_temps.end(), 0.0) / right_temps.size();
-		double intake_temp = intake.get_temperature();
+		// std::vector<double> left_temp = left_motors.get_temperature_all();
+		// std::vector<double> right_temps = right_motors.get_temperature_all();
+		// double left_temp_avg = std::accumulate(left_temp.begin(), left_temp.end(), 0.0) / left_temp.size();
+		// double right_temp_avg = std::accumulate(right_temps.begin(), right_temps.end(), 0.0) / right_temps.size();
+		// double intake_temp = intake.get_temperature();
 
-		int battery_voltage = pros::battery::get_voltage();
-		int battery_current = pros::battery::get_current();
+		// int battery_voltage = pros::battery::get_voltage();
+		// int battery_current = pros::battery::get_current();
 
-		pros::lcd::set_text(2, "Intake Temp: " + std::to_string(intake_temp));
-		pros::lcd::set_text(3, "Average Temp: " + std::to_string((left_temp_avg + right_temp_avg + intake_temp) / 3));
-		pros::lcd::set_text(4, "Battery V: " + std::to_string(battery_voltage));
-		pros::lcd::set_text(5, "Battery I: " + std::to_string(battery_current));
-		pros::lcd::set_text(6, "Battery P: " + std::to_string(battery_voltage * battery_current));
+		// pros::lcd::set_text(2, "Intake Temp: " + std::to_string(intake_temp));
+		// pros::lcd::set_text(3, "Average Temp: " + std::to_string((left_temp_avg + right_temp_avg + intake_temp) / 3));
+		// pros::lcd::set_text(4, "Battery V: " + std::to_string(battery_voltage));
+		// pros::lcd::set_text(5, "Battery I: " + std::to_string(battery_current));
+		// pros::lcd::set_text(6, "Battery P: " + std::to_string(battery_voltage * battery_current));
 		pros::delay(5);
 	}
 }

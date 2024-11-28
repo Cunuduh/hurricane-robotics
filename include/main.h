@@ -78,6 +78,7 @@ void opcontrol(void);
 #include <string>
 #include <numeric>
 #include <vector>
+#include <atomic>
 #endif
 
 #endif  // _PROS_MAIN_H_
