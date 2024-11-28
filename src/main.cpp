@@ -26,33 +26,42 @@ colour team_colour = colour::BLUE;
 colour detect_colour()
 {
 	double hue = colour_sensor.get_hue();
-	if (hue >= 0 && hue <= 60)
+	if (colour_sensor.get_proximity() > 128)
 	{
-		master.print(0, 0, "Red ");
+		master.print(1, 0, "None");
+		return colour::NONE;
+	}
+	// 330-30 degrees = red
+	if (hue >= 330.0 || hue <= 30.0)
+	{
+		master.print(1, 0, "Red ");
 		return colour::RED;
 	}
-	else if (hue >= 90 && hue <= 270)
+	// 150-210 degrees = blue
+	else if (hue >= 150.0 && hue <= 210.0)
 	{
-		master.print(0, 0, "Blue");
+		master.print(1, 0, "Blue");
 		return colour::BLUE;
 	}
 	else
 	{
-		master.print(0, 0, "None");
+		master.print(1, 0, "None");
 		return colour::NONE;
 	}
 }
 void initialize()
 {
 	pros::lcd::initialize();
+	lb_rotation.reset_position();
 	std::string team = (team_colour == colour::RED) ? "Red" : "Blue";
-	master.print(1, 0, ("Team: " + team).c_str());
+	master.print(0, 0, ("Team:" + team).c_str());
+	master.print(1, 0, "None");
+	master.print(2, 0, "FilterOff");
 	intake_power = 0;
 	intake_running = false;
 	colour_rejection_active = false;
 	pros::Task colour_rejection_task{[&]
 	{
-		return;
 		while (true)
 		{
 			if (intake_power != 0)
@@ -62,15 +71,12 @@ void initialize()
 				{
 					colour_rejection_active = true;
 					last_rejection_time = pros::millis();
+					intake.move(0);
 				}
-				if (colour_rejection_active && (pros::millis() - last_rejection_time > 800))
+				if (colour_rejection_active && (pros::millis() - last_rejection_time > 500))
 				{
 					colour_rejection_active = false;
 					intake.move(intake_power);
-				}
-				else if (colour_rejection_active && (pros::millis() - last_rejection_time > 5))
-				{
-					intake.move(0);
 				}
 			}
 			pros::delay(30);
@@ -159,7 +165,14 @@ void opcontrol()
 		if (master.get_digital_new_press(DIGITAL_X))
 		{
 			override_active = !override_active;
-			
+			if (override_active)
+			{
+				master.print(2, 0, "FilterOff");
+			}
+			else
+			{
+				master.print(2, 0, "FilterOn ");
+			}
 		}
 		if (master.get_digital_new_press(DIGITAL_A))
 		{
@@ -198,14 +211,6 @@ void opcontrol()
 		else
 		{
 			intake_power = intake_running ? 127 : 0;
-		}
-		if (colour_rejection_active)
-		{
-			master.print(2, 0, "True ");
-		}
-		else
-		{
-			master.print(2, 0, "False");
 		}
 		if (master.get_digital_new_press(DIGITAL_R1))
 		{
