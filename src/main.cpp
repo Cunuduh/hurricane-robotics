@@ -1,6 +1,7 @@
 #include "main.h"
 pros::Optical colour_sensor(12);
 pros::Rotation lb_rotation(8);
+std::shared_ptr<okapi::ContinuousRotarySensor> imu = std::make_shared<okapi::IMU>(20);
 pros::MotorGroup intake({-21, -7}, pros::v5::MotorGears::green);
 std::atomic<int> intake_power{0};
 std::atomic<bool> intake_running{false};
@@ -8,11 +9,19 @@ std::atomic<bool> colour_rejection_active{false};
 std::atomic<int> last_rejection_time{0};
 pros::Motor lb(13, pros::v5::MotorGears::green);
 pros::ADIDigitalOut solenoid('A');
-std::shared_ptr<okapi::ChassisController> chassis =
+pros::ADIDigitalOut doinker('B');
+pros::ADIDigitalOut climb('C');
+std::shared_ptr<okapi::OdomChassisController> chassis =
 	okapi::ChassisControllerBuilder()
 		.withMotors({-1, -3, 5}, {2, 4, -6})
-		.withDimensions(okapi::AbstractMotor::gearset::blue, {{3.25_in, 15_in}, okapi::imev5BlueTPR})
-		.build();
+		.withDimensions({okapi::AbstractMotor::gearset::blue, (72.0 / 48.0)}, {{3.25_in, 15.5_in}, okapi::imev5BlueTPR})
+		.withSensors(
+			std::make_shared<okapi::IntegratedEncoder>(1, true),
+			std::make_shared<okapi::IntegratedEncoder>(2, false),
+			imu
+		)
+		.withOdometry()
+		.buildOdometry();
 pros::Controller master(pros::E_CONTROLLER_MASTER);
 pros::MotorGroup left_motors({-1, -3, 5}, pros::v5::MotorGears::blue);
 pros::MotorGroup right_motors({2, 4, -6}, pros::v5::MotorGears::blue);
@@ -52,6 +61,7 @@ colour detect_colour()
 void initialize()
 {
 	pros::lcd::initialize();
+	lb.set_brake_mode(pros::E_MOTOR_BRAKE_HOLD);
 	lb_rotation.reset_position();
 	std::string team = (team_colour == colour::RED) ? "Red" : "Blue";
 	master.print(0, 0, ("Team:" + team).c_str());
@@ -62,6 +72,7 @@ void initialize()
 	colour_rejection_active = false;
 	pros::Task colour_rejection_task{[&]
 	{
+		return;
 		while (true)
 		{
 			if (intake_power != 0)
@@ -85,48 +96,113 @@ void initialize()
 }
 void disabled() {}
 void competition_initialize() {}
-void activate_intake(int duration_ms = 0, int power = 127)
+bool is_intake_stalled(const pros::MotorGroup& motors, int threshold = 60)
+{
+	return std::abs(motors.get_actual_velocity_all()[0]) < 10 && 
+				 std::abs(motors.get_target_velocity_all()[0]) > threshold;
+}
+
+void attempt_unjam(pros::MotorGroup& intake, std::shared_ptr<okapi::OdomChassisController> chassis)
+{
+	intake.move(-127);
+	chassis->moveDistance(-3_in);
+	intake.move(127);
+	chassis->moveDistance(3_in);
+}
+
+void activate_intake(int duration_ms = 0, int power = 127, bool check_stall = false)
 {
 	intake.move(power);
 	if (duration_ms > 0)
 	{
-		pros::delay(duration_ms);
+		int time_elapsed = 0;
+		int check_interval = duration_ms / 10;
+		while (time_elapsed < duration_ms) 
+		{
+			if (check_stall && is_intake_stalled(intake))
+			{
+				attempt_unjam(intake, chassis);
+				intake.move(power);
+			}
+			pros::delay(check_interval);
+			time_elapsed += check_interval;
+		}
 		intake.move(0);
+	}
+	else if (check_stall)
+	{
+		while (true)
+		{
+			if (is_intake_stalled(intake))
+			{
+				attempt_unjam(intake, chassis);
+				intake.move(power);
+			}
+				pros::delay(50);
+		}
 	}
 }
 void activate_lb(int duration_ms = 0)
 {
-	lb.move(127);
+	lb.move(100);
 	pros::delay(duration_ms);
-	lb.move(-127);
+	lb.move(-100);
 	pros::delay(duration_ms);
 	lb.move(0);
 }
 void autonomous()
 {
-	chassis->setMaxVelocity(250);
 	solenoid.set_value(false);
-	chassis->moveDistance(-1.25_ft);
-	chassis->turnAngle(45_deg);
-	chassis->setMaxVelocity(225);
-	chassis->moveDistance(-4_ft);
+	doinker.set_value(false);
+	lb.move(64);
+	pros::delay(450);
+	lb.move(0);
+	// chassis->moveDistance(-2.75_ft);
+	// chassis->turnAngle(-180_deg); // -90
+	// activate_lb(1500);
+	// lb.move(100);
+	// pros::delay(100);
+	// lb.move(0);
+	// chassis->turnAngle(180_deg); // 90
+	// chassis->moveDistance(4_ft);
+	// chassis->turnAngle(-180_deg); // -90
+	// chassis->moveDistance(-4_ft);
+	// chassis->turnAngle(180_deg); // 90
+	chassis->setMaxVelocity(150);
+	chassis->moveDistance(-3_ft);
 	solenoid.set_value(true);
-	chassis->moveDistance(-0.5_ft);
+	chassis->moveDistance(-0.2_ft);
 	chassis->setMaxVelocity(250);
-	chassis->turnAngle(75_deg);
+	chassis->turnAngle(90_deg);
 	activate_intake();
-	chassis->moveDistance(3.5_ft);
+	chassis->moveDistance(2_ft);
+	pros::delay(1500);
+	activate_intake(0, 0);
+	chassis->moveDistance(-0.33_ft);
+	chassis->turnAngle(90_deg);
+	chassis->setMaxVelocity(75);
+	chassis->moveDistance(0.75_ft);
+	activate_intake();
+	chassis->moveDistance(0.25_ft);
 	pros::delay(1000);
 	activate_intake(0, 0);
-	chassis->moveDistance(-1.5_ft);
-	chassis->turnAngle(125_deg); // from 120
-	chassis->setMaxVelocity(75);
+	chassis->setMaxVelocity(250);
+	chassis->moveDistance(-3_ft);
+	chassis->setMaxVelocity(200);
+	chassis->turnAngle(85_deg);
+	chassis->setMaxVelocity(250);
+	chassis->moveDistance(4_ft);
 	activate_intake();
-	chassis->moveDistance(1.5_ft);
-	pros::delay(2000);
-	activate_intake(0);
+	chassis->moveDistance(1_ft);
+	pros::delay(1500);
+	activate_intake(0, 0);
+	chassis->turnAngle(-90_deg);
+	chassis->moveDistance(2.5_ft);
 }
-void autonomous_alt() {
+void autonomous_skills()
+{}
+void autonomous_alt()
+{
 	chassis->moveDistance(-1_ft);
 	chassis->turnAngle(-45_deg);
 	chassis->moveDistance(-1.5_ft);
@@ -158,21 +234,28 @@ void opcontrol()
 {
 	static bool override_active = false;
 	static bool solenoid_state = false;
+	static bool doinker_state = false;
+	static bool climb_state = false;
 	while (true)
 	{
 		int left_input = quad_curve(master.get_analog(ANALOG_LEFT_Y));
 		int right_input = quad_curve(master.get_analog(ANALOG_RIGHT_Y));
+		// if (master.get_digital_new_press(DIGITAL_X))
+		// {
+		// 	override_active = !override_active;
+		// 	if (override_active)
+		// 	{
+		// 		master.print(2, 0, "FilterOff");
+		// 	}
+		// 	else
+		// 	{
+		// 		master.print(2, 0, "FilterOn ");
+		// 	}
+		// }
 		if (master.get_digital_new_press(DIGITAL_X))
 		{
-			override_active = !override_active;
-			if (override_active)
-			{
-				master.print(2, 0, "FilterOff");
-			}
-			else
-			{
-				master.print(2, 0, "FilterOn ");
-			}
+			climb_state = !climb_state;
+			climb.set_value(climb_state);
 		}
 		if (master.get_digital_new_press(DIGITAL_A))
 		{
@@ -184,11 +267,11 @@ void opcontrol()
 		}
 		if (master.get_digital(DIGITAL_RIGHT))
 		{
-			lb.move(127);
+			lb.move(100);
 		}
 		else if (master.get_digital(DIGITAL_LEFT))
 		{
-			lb.move(-127);
+			lb.move(-100);
 		}
 		else
 		{
@@ -217,7 +300,11 @@ void opcontrol()
 			solenoid_state = !solenoid_state;
 			solenoid.set_value(solenoid_state);
 		}
-
+		if (master.get_digital_new_press(DIGITAL_Y))
+		{
+			doinker_state = !doinker_state;
+			doinker.set_value(doinker_state);
+		}
 		left_motors.move(left_input);
 		right_motors.move(right_input);
 		if (!colour_rejection_active || override_active)
@@ -225,20 +312,6 @@ void opcontrol()
 			intake.move(intake_power);
 		}
 
-		// std::vector<double> left_temp = left_motors.get_temperature_all();
-		// std::vector<double> right_temps = right_motors.get_temperature_all();
-		// double left_temp_avg = std::accumulate(left_temp.begin(), left_temp.end(), 0.0) / left_temp.size();
-		// double right_temp_avg = std::accumulate(right_temps.begin(), right_temps.end(), 0.0) / right_temps.size();
-		// double intake_temp = intake.get_temperature();
-
-		// int battery_voltage = pros::battery::get_voltage();
-		// int battery_current = pros::battery::get_current();
-
-		// pros::lcd::set_text(2, "Intake Temp: " + std::to_string(intake_temp));
-		// pros::lcd::set_text(3, "Average Temp: " + std::to_string((left_temp_avg + right_temp_avg + intake_temp) / 3));
-		// pros::lcd::set_text(4, "Battery V: " + std::to_string(battery_voltage));
-		// pros::lcd::set_text(5, "Battery I: " + std::to_string(battery_current));
-		// pros::lcd::set_text(6, "Battery P: " + std::to_string(battery_voltage * battery_current));
 		pros::delay(5);
 	}
 }
