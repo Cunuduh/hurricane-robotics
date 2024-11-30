@@ -187,16 +187,20 @@ void autonomous()
 	pros::delay(1000);
 	activate_intake(0, 0);
 	chassis->setMaxVelocity(250);
-	chassis->moveDistance(-3_ft);
+	chassis->moveDistance(-2.8_ft);
 	chassis->setMaxVelocity(200);
 	chassis->turnAngle(85_deg);
 	chassis->setMaxVelocity(250);
-	chassis->moveDistance(4_ft);
+	chassis->moveDistance(4.125_ft);
+	doinker.set_value(true);
+	chassis->turnAngle(-90_deg);
+	doinker.set_value(false);
+	chassis->turnAngle(45_deg);
 	activate_intake();
 	chassis->moveDistance(1_ft);
 	pros::delay(1500);
 	activate_intake(0, 0);
-	chassis->turnAngle(-90_deg);
+	chassis->turnAngle(-45_deg);
 	chassis->moveDistance(2.5_ft);
 }
 void autonomous_skills()
