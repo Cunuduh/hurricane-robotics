@@ -1,30 +1,18 @@
 #include "main.h"
-pros::Optical colour_sensor(12);
-pros::Rotation lb_rotation(8);
-std::shared_ptr<okapi::ContinuousRotarySensor> imu = std::make_shared<okapi::IMU>(20);
-pros::MotorGroup intake({-21, -7}, pros::v5::MotorGears::green);
+double flip = 1.0;
+pros::Optical colour_sensor(19);
+pros::Rotation lb_rotation(20);
+auto imu = std::make_shared<okapi::IMU>(7);
+pros::MotorGroup intake({8, -9}, pros::v5::MotorGears::green);
 std::atomic<int> intake_power{0};
 std::atomic<bool> intake_running{false};
 std::atomic<bool> colour_rejection_active{false};
 std::atomic<int> last_rejection_time{0};
-pros::Motor lb(13, pros::v5::MotorGears::green);
+pros::Motor lb(10, pros::v5::MotorGears::green);
 pros::ADIDigitalOut solenoid('A');
-pros::ADIDigitalOut doinker('B');
-pros::ADIDigitalOut climb('C');
-std::shared_ptr<okapi::OdomChassisController> chassis =
-	okapi::ChassisControllerBuilder()
-		.withMotors({-1, -3, 5}, {2, 4, -6})
-		.withDimensions({okapi::AbstractMotor::gearset::blue, (72.0 / 48.0)}, {{3.25_in, 15.5_in}, okapi::imev5BlueTPR})
-		.withSensors(
-			std::make_shared<okapi::IntegratedEncoder>(1, true),
-			std::make_shared<okapi::IntegratedEncoder>(2, false),
-			imu
-		)
-		.withOdometry()
-		.buildOdometry();
 pros::Controller master(pros::E_CONTROLLER_MASTER);
-pros::MotorGroup left_motors({-1, -3, 5}, pros::v5::MotorGears::blue);
-pros::MotorGroup right_motors({2, 4, -6}, pros::v5::MotorGears::blue);
+pros::MotorGroup left_motors({-4, -5, 6}, pros::v5::MotorGears::blue);
+pros::MotorGroup right_motors({1, 2, -3}, pros::v5::MotorGears::blue);
 enum class colour
 {
 	RED,
@@ -96,51 +84,11 @@ void initialize()
 }
 void disabled() {}
 void competition_initialize() {}
-bool is_intake_stalled(const pros::MotorGroup& motors, int threshold = 60)
-{
-	return std::abs(motors.get_actual_velocity_all()[0]) < 10 && 
-				 std::abs(motors.get_target_velocity_all()[0]) > threshold;
-}
-
-void attempt_unjam(pros::MotorGroup& intake, std::shared_ptr<okapi::OdomChassisController> chassis)
-{
-	intake.move(-127);
-	chassis->moveDistance(-3_in);
-	intake.move(127);
-	chassis->moveDistance(3_in);
-}
-
-void activate_intake(int duration_ms = 0, int power = 127, bool check_stall = false)
+void activate_intake(int duration_ms = 0, int power = 127)
 {
 	intake.move(power);
-	if (duration_ms > 0)
-	{
-		int time_elapsed = 0;
-		int check_interval = duration_ms / 10;
-		while (time_elapsed < duration_ms) 
-		{
-			if (check_stall && is_intake_stalled(intake))
-			{
-				attempt_unjam(intake, chassis);
-				intake.move(power);
-			}
-			pros::delay(check_interval);
-			time_elapsed += check_interval;
-		}
-		intake.move(0);
-	}
-	else if (check_stall)
-	{
-		while (true)
-		{
-			if (is_intake_stalled(intake))
-			{
-				attempt_unjam(intake, chassis);
-				intake.move(power);
-			}
-				pros::delay(50);
-		}
-	}
+	pros::delay(duration_ms);
+	intake.move(0);
 }
 void activate_lb(int duration_ms = 0)
 {
@@ -149,83 +97,93 @@ void activate_lb(int duration_ms = 0)
 	lb.move(-100);
 	pros::delay(duration_ms);
 	lb.move(0);
+}// void autonomous_()
+// {
+// 	// IF PLAYING ON LEFT AUDIENCE SIDE SET FLIP TO -1
+// 	solenoid.set_value(false);
+// 	lb.move(127);
+// 	pros::delay(300);
+// 	lb.move(0);
+// 	chassis->setMaxVelocity(200);
+// 	chassis->moveDistance(-1.125_ft);
+// 	chassis->turnAngle(-40_deg * flip);
+// 	chassis->moveDistanceAsync(-2.95_ft);
+// 	for (int i = 0; i < 7; i++)
+// 	{
+// 		chassis->setMaxVelocity(200 - i * 20);
+// 		pros::delay(100);
+// 	}
+// 	chassis->moveDistance(-0.86_ft);
+// 	solenoid.set_value(true);
+// 	pros::delay(350);
+// 	chassis->turnAngle(-45_deg * flip);
+// 	activate_intake();
+// 	chassis->setMaxVelocity(300);
+// 	chassis->moveDistance(1_ft);
+// 	chassis->setMaxVelocity(150);
+// 	chassis->turnAngle(-90_deg * flip);
+// 	chassis->moveDistance(1.25_ft);
+// 	pros::delay(1000);
+// 	chassis->setMaxVelocity(400);
+// 	chassis->moveDistance(-0.75_ft);
+// 	chassis->setMaxVelocity(250);
+// 	chassis->turnAngle(-85_deg * flip);
+// 	chassis->setMaxVelocity(400);
+// 	chassis->moveDistance(2_ft);
+// 	activate_intake(0, 0);
+// 	// doinker.set_value(true);
+// 	// chassis->setMaxVelocity(250);
+// 	// chassis->turnAngle(-90_deg * flip);
+// 	// doinker.set_value(false);
+// 	// chassis->turnAngle(45_deg * flip);
+// 	// activate_intake();
+// 	// chassis->setMaxVelocity(450);
+// 	// chassis->moveDistance(1_ft);
+// 	// pros::delay(1000);
+// 	// activate_intake(0, 0);
+// 	// chassis->turnAngle(-45_deg * flip);
+// 	// chassis->moveDistance(2.5_ft);
+// }
+
+void autonomous_skills()
+{}
+void turn(std::shared_ptr<okapi::ChassisController> chassis, okapi::QAngle angle)
+{
+	double initial_velocity = chassis->getMaxVelocity();
+	chassis->setMaxVelocity(200);
+	chassis->turnAngle(angle);
+	chassis->setMaxVelocity(initial_velocity);
 }
 void autonomous()
 {
-	solenoid.set_value(false);
-	doinker.set_value(false);
-	lb.move(64);
-	pros::delay(450);
-	lb.move(0);
-	// chassis->moveDistance(-2.75_ft);
-	// chassis->turnAngle(-180_deg); // -90
-	// activate_lb(1500);
-	// lb.move(100);
-	// pros::delay(100);
-	// lb.move(0);
-	// chassis->turnAngle(180_deg); // 90
-	// chassis->moveDistance(4_ft);
-	// chassis->turnAngle(-180_deg); // -90
-	// chassis->moveDistance(-4_ft);
-	// chassis->turnAngle(180_deg); // 90
-	chassis->setMaxVelocity(150);
-	chassis->moveDistance(-3_ft);
-	solenoid.set_value(true);
-	chassis->moveDistance(-0.2_ft);
-	chassis->setMaxVelocity(250);
-	chassis->turnAngle(90_deg);
-	activate_intake();
-	chassis->moveDistance(2_ft);
-	pros::delay(1500);
-	activate_intake(0, 0);
-	chassis->moveDistance(-0.33_ft);
-	chassis->turnAngle(90_deg);
-	chassis->setMaxVelocity(75);
-	chassis->moveDistance(0.75_ft);
-	activate_intake();
-	chassis->moveDistance(0.25_ft);
-	pros::delay(1000);
-	activate_intake(0, 0);
-	chassis->setMaxVelocity(250);
-	chassis->moveDistance(-2.8_ft);
-	chassis->setMaxVelocity(200);
-	chassis->turnAngle(85_deg);
-	chassis->setMaxVelocity(250);
-	chassis->moveDistance(4.125_ft);
-	doinker.set_value(true);
-	chassis->turnAngle(-90_deg);
-	doinker.set_value(false);
-	chassis->turnAngle(45_deg);
-	activate_intake();
-	chassis->moveDistance(1_ft);
-	pros::delay(1500);
-	activate_intake(0, 0);
-	chassis->turnAngle(-45_deg);
-	chassis->moveDistance(2.5_ft);
-}
-void autonomous_skills()
-{}
-void autonomous_alt()
-{
-	chassis->moveDistance(-1_ft);
-	chassis->turnAngle(-45_deg);
-	chassis->moveDistance(-1.5_ft);
-	activate_intake(1000);
-	activate_lb(500);
-	chassis->turnAngle(67.5_deg);
-	chassis->moveDistance(-4.5_ft);
-	chassis->turnAngle(-112.5_deg);
-	pros::delay(500);
-	solenoid.set_value(true);
-	chassis->moveDistance(2_ft);
-	activate_intake(2000);
-	chassis->turnAngle(90_deg);
-	chassis->moveDistance(2_ft);
-	activate_intake(2000);
-	chassis->turnAngle(-45_deg);
-	chassis->moveDistance(3_ft);
-	solenoid.set_value(false);
-	chassis->moveDistance(8.5_ft);
+	std::shared_ptr<okapi::ChassisController> chassis =
+		okapi::ChassisControllerBuilder()
+			.withMotors({-4, -5, 6}, {1, 2, -3})
+			.withDimensions({okapi::AbstractMotor::gearset::blue, (72.0 / 48.0)}, {{3.25_in, 15.5_in}, okapi::imev5BlueTPR})
+			.withSensors(
+				std::make_shared<okapi::IntegratedEncoder>(6, false),
+				std::make_shared<okapi::IntegratedEncoder>(3, true),
+				imu
+			)
+			.withGains(
+				{0.0040, 0.000, 0.000025}, // Distance controller gains
+				{0.0045, 0.002, 0.000050}, // Turn controller gains
+				{0.0003, 0.000, 0.000025}  // Angle controller gains (helps drive straight)
+			)
+			.withClosedLoopControllerTimeUtil(
+				10.0,
+				2.5,
+				300_ms
+			)
+			.build();
+	imu->calibrate();
+	// go in infinite square
+	chassis->setMaxVelocity(300);
+	while (true)
+	{
+		chassis->moveDistance(2_ft);
+		turn(chassis, 90_deg);
+	}
 }
 int quad_curve(int input)
 {
@@ -242,32 +200,13 @@ void opcontrol()
 	static bool climb_state = false;
 	while (true)
 	{
-		int left_input = quad_curve(master.get_analog(ANALOG_LEFT_Y));
-		int right_input = quad_curve(master.get_analog(ANALOG_RIGHT_Y));
-		// if (master.get_digital_new_press(DIGITAL_X))
-		// {
-		// 	override_active = !override_active;
-		// 	if (override_active)
-		// 	{
-		// 		master.print(2, 0, "FilterOff");
-		// 	}
-		// 	else
-		// 	{
-		// 		master.print(2, 0, "FilterOn ");
-		// 	}
-		// }
-		if (master.get_digital_new_press(DIGITAL_X))
-		{
-			climb_state = !climb_state;
-			climb.set_value(climb_state);
-		}
+		int power = quad_curve(master.get_analog(ANALOG_LEFT_Y));
+		int turn = quad_curve(master.get_analog(ANALOG_RIGHT_X));
+		int left_input = power + turn;
+		int right_input = power - turn;
 		if (master.get_digital_new_press(DIGITAL_A))
 		{
 			autonomous();
-		}
-		if (master.get_digital_new_press(DIGITAL_B))
-		{
-			autonomous_alt();
 		}
 		if (master.get_digital(DIGITAL_RIGHT))
 		{
@@ -304,18 +243,12 @@ void opcontrol()
 			solenoid_state = !solenoid_state;
 			solenoid.set_value(solenoid_state);
 		}
-		if (master.get_digital_new_press(DIGITAL_Y))
-		{
-			doinker_state = !doinker_state;
-			doinker.set_value(doinker_state);
-		}
 		left_motors.move(left_input);
 		right_motors.move(right_input);
 		if (!colour_rejection_active || override_active)
 		{
 			intake.move(intake_power);
 		}
-
 		pros::delay(5);
 	}
 }
