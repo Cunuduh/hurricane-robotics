@@ -84,67 +84,21 @@ void initialize()
 }
 void disabled() {}
 void competition_initialize() {}
-void activate_intake(int duration_ms = 0, int power = 127)
+void activate_intake(int duration_ms = 0, int rpm = 300) // Changed from power to rpm
 {
-	intake.move(power);
-	pros::delay(duration_ms);
-	intake.move(0);
+    intake.move_velocity(rpm);
+    pros::delay(duration_ms);
+    intake.move_velocity(0);
 }
+
 void activate_lb(int duration_ms = 0)
 {
-	lb.move(100);
-	pros::delay(duration_ms);
-	lb.move(-100);
-	pros::delay(duration_ms);
-	lb.move(0);
-}// void autonomous_()
-// {
-// 	// IF PLAYING ON LEFT AUDIENCE SIDE SET FLIP TO -1
-// 	solenoid.set_value(false);
-// 	lb.move(127);
-// 	pros::delay(300);
-// 	lb.move(0);
-// 	chassis->setMaxVelocity(200);
-// 	chassis->moveDistance(-1.125_ft);
-// 	chassis->turnAngle(-40_deg * flip);
-// 	chassis->moveDistanceAsync(-2.95_ft);
-// 	for (int i = 0; i < 7; i++)
-// 	{
-// 		chassis->setMaxVelocity(200 - i * 20);
-// 		pros::delay(100);
-// 	}
-// 	chassis->moveDistance(-0.86_ft);
-// 	solenoid.set_value(true);
-// 	pros::delay(350);
-// 	chassis->turnAngle(-45_deg * flip);
-// 	activate_intake();
-// 	chassis->setMaxVelocity(300);
-// 	chassis->moveDistance(1_ft);
-// 	chassis->setMaxVelocity(150);
-// 	chassis->turnAngle(-90_deg * flip);
-// 	chassis->moveDistance(1.25_ft);
-// 	pros::delay(1000);
-// 	chassis->setMaxVelocity(400);
-// 	chassis->moveDistance(-0.75_ft);
-// 	chassis->setMaxVelocity(250);
-// 	chassis->turnAngle(-85_deg * flip);
-// 	chassis->setMaxVelocity(400);
-// 	chassis->moveDistance(2_ft);
-// 	activate_intake(0, 0);
-// 	// doinker.set_value(true);
-// 	// chassis->setMaxVelocity(250);
-// 	// chassis->turnAngle(-90_deg * flip);
-// 	// doinker.set_value(false);
-// 	// chassis->turnAngle(45_deg * flip);
-// 	// activate_intake();
-// 	// chassis->setMaxVelocity(450);
-// 	// chassis->moveDistance(1_ft);
-// 	// pros::delay(1000);
-// 	// activate_intake(0, 0);
-// 	// chassis->turnAngle(-45_deg * flip);
-// 	// chassis->moveDistance(2.5_ft);
-// }
-
+    lb.move_velocity(300);
+    pros::delay(duration_ms);
+    lb.move_velocity(-300);
+    pros::delay(duration_ms);
+    lb.move_velocity(0);
+}
 void autonomous_skills()
 {}
 void turn(std::shared_ptr<okapi::ChassisController> chassis, okapi::QAngle angle)
@@ -185,12 +139,12 @@ void autonomous()
 		turn(chassis, 90_deg);
 	}
 }
-int quad_curve(int input)
+int quad_curve(int input, int max_rpm)
 {
 	float norm = input / 127.0f;
 	int sign = (norm >= 0) ? 1 : -1;
 	float curved = norm * norm * sign;
-	return static_cast<int>(curved * 127.0f);
+	return static_cast<int>(curved * max_rpm);
 }
 void opcontrol()
 {
@@ -198,32 +152,36 @@ void opcontrol()
 	static bool solenoid_state = false;
 	static bool doinker_state = false;
 	static bool climb_state = false;
+	
 	while (true)
 	{
-		int power = quad_curve(master.get_analog(ANALOG_LEFT_Y));
-		int turn = quad_curve(master.get_analog(ANALOG_RIGHT_X));
+		int power = quad_curve(master.get_analog(ANALOG_LEFT_Y), 600);
+		int turn = quad_curve(master.get_analog(ANALOG_RIGHT_X), 600);
 		int left_input = power + turn;
 		int right_input = power - turn;
+
 		if (master.get_digital_new_press(DIGITAL_A))
 		{
 			autonomous();
 		}
+
 		if (master.get_digital(DIGITAL_RIGHT))
 		{
-			lb.move(100);
+			lb.move_velocity(300); // Green cartridge
 		}
 		else if (master.get_digital(DIGITAL_LEFT))
 		{
-			lb.move(-100);
+			lb.move_velocity(-300); // Green cartridge
 		}
 		else
 		{
-			lb.move(0);
+			lb.move_velocity(0);
 		}
+
 		if (master.get_digital_new_press(DIGITAL_L2))
 		{
 			intake_running = true;
-			intake_power = 127;
+			intake_power = 300; // Green cartridge
 		}
 		if (master.get_digital_new_press(DIGITAL_R2))
 		{
@@ -232,23 +190,27 @@ void opcontrol()
 		}
 		if (master.get_digital(DIGITAL_L1))
 		{
-			intake_power = -127;
+			intake_power = -300; // Green cartridge
 		}
 		else
 		{
-			intake_power = intake_running ? 127 : 0;
+			intake_power = intake_running ? 300 : 0; // Green cartridge
 		}
+
 		if (master.get_digital_new_press(DIGITAL_R1))
 		{
 			solenoid_state = !solenoid_state;
 			solenoid.set_value(solenoid_state);
 		}
-		left_motors.move(left_input);
-		right_motors.move(right_input);
+
+		left_motors.move_velocity(left_input);  // Blue cartridge
+		right_motors.move_velocity(right_input); // Blue cartridge
+
 		if (!colour_rejection_active || override_active)
 		{
-			intake.move(intake_power);
+			intake.move_velocity(intake_power);
 		}
+
 		pros::delay(5);
 	}
 }
