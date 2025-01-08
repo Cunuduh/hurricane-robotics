@@ -163,6 +163,7 @@ void opcontrol()
 			doinker_state = !doinker_state;
 			doinker.set_value(doinker_state);
 		}
+		intake.move_velocity(intake_power);
 		left_motors.move_velocity(left_input);  // Blue cartridge
 		right_motors.move_velocity(right_input); // Blue cartridge
 		pros::delay(5);
