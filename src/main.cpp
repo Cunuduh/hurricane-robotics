@@ -8,6 +8,7 @@ int intake_power = 0;
 bool intake_running = false;
 pros::Motor lb(10, pros::v5::MotorGears::green);
 pros::ADIDigitalOut solenoid('A');
+pros::ADIDigitalOut doinker('B');
 pros::Controller master(pros::E_CONTROLLER_MASTER);
 pros::MotorGroup left_motors({-4, -5, 6}, pros::v5::MotorGears::blue);
 pros::MotorGroup right_motors({1, 2, -3}, pros::v5::MotorGears::blue);
@@ -18,6 +19,7 @@ struct record_frame
 	int lb_input;
 	int intake_power;
 	bool solenoid_state;
+	bool doinker_state;
 };
 bool recording = false;
 std::vector<record_frame> frames;
@@ -34,7 +36,7 @@ void initialize()
 	{
 		frames.clear();
 		record_frame frame;
-		while (file >> frame.left_input >> frame.right_input >> frame.lb_input >> frame.intake_power >> frame.solenoid_state)
+		while (file >> frame.left_input >> frame.right_input >> frame.lb_input >> frame.intake_power >> frame.solenoid_state >> frame.doinker_state)
 		{
 			frames.push_back(frame);
 		}
@@ -102,7 +104,7 @@ void opcontrol()
 				std::ofstream file("/usd/recorded.txt");
 				for (const auto &frame : frames)
 				{
-					file << frame.left_input << " " << frame.right_input << " " << frame.lb_input << " " << frame.intake_power << " " << frame.solenoid_state << std::endl;
+					file << frame.left_input << " " << frame.right_input << " " << frame.lb_input << " " << frame.intake_power << " " << frame.solenoid_state << frame.doinker_state << std::endl;
 				}
 				file.close();
 				frames.clear();
@@ -116,6 +118,7 @@ void opcontrol()
 			frame.lb_input = lb.get_actual_velocity();
 			frame.intake_power = intake.get_actual_velocity();
 			frame.solenoid_state = solenoid_state;
+			frame.doinker_state = doinker_state;
 			frames.push_back(frame);
 		}
 		if (master.get_digital(DIGITAL_RIGHT))
@@ -154,6 +157,11 @@ void opcontrol()
 		{
 			solenoid_state = !solenoid_state;
 			solenoid.set_value(solenoid_state);
+		}
+		if (master.get_digital_new_press(DIGITAL_A))
+		{
+			doinker_state = !doinker_state;
+			doinker.set_value(doinker_state);
 		}
 		left_motors.move_velocity(left_input);  // Blue cartridge
 		right_motors.move_velocity(right_input); // Blue cartridge
