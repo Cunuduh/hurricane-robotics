@@ -16,26 +16,28 @@ pros::MotorGroup right_motors({1, 2, -3}, pros::v5::MotorGears::blue);
 
 pros::ADIDigitalOut solenoid('A');
 pros::ADIDigitalOut doinker('B');
+pros::ADIDigitalOut climb('C');
 
 pros::Controller master(pros::E_CONTROLLER_MASTER);
 
-int intake_power = 0;
+int32_t intake_power = 0;
 bool intake_running = false;
 bool solenoid_on = false;
 bool doinker_on = false;
+bool climb_on = false;
 
 struct action_frame
 {
 	uint16_t timestamp_delta;
 	int8_t left_input;
 	int8_t right_input;
-	uint8_t flags; // flags: lb_right, lb_left, intake_l1, intake_l2, intake_r2, solenoid_toggle, doinker_toggle
+	uint8_t flags; // flags: lb_right, lb_left, intake_l1, intake_l2, intake_r2, solenoid_toggle, doinker_toggle, climb_toggle
 };
 
 struct controller_state
 {
-	int left_input = 0;
-	int right_input = 0;
+	int32_t left_input = 0;
+	int32_t right_input = 0;
 	bool lb_right = false;
 	bool lb_left = false;
 	bool intake_l1 = false;
@@ -43,6 +45,7 @@ struct controller_state
 	bool intake_r2 = false;
 	bool solenoid_toggle = false;
 	bool doinker_toggle = false;
+	bool climb_toggle = false;
 
 	bool operator!=(const controller_state &other) const
 	{
@@ -54,7 +57,8 @@ struct controller_state
 					 intake_l2 != other.intake_l2 ||
 					 intake_r2 != other.intake_r2 ||
 					 solenoid_toggle != other.solenoid_toggle ||
-					 doinker_toggle != other.doinker_toggle;
+					 doinker_toggle != other.doinker_toggle ||
+					 climb_toggle != other.climb_toggle;
 	}
 };
 
@@ -100,8 +104,8 @@ void autonomous()
 		while (pros::millis() < current_time)
 			pros::delay(1);
 
-		int power = quad_curve(frame.left_input, 600);
-		int turn = quad_curve(frame.right_input, 600);
+		int32_t power = quad_curve(frame.left_input, 600);
+		int32_t turn = quad_curve(frame.right_input, 600);
 		left_motors.move_velocity(power + turn);
 		right_motors.move_velocity(power - turn);
 
@@ -125,6 +129,11 @@ void autonomous()
 			doinker_on = !doinker_on;
 			doinker.set_value(doinker_on);
 		}
+		if (frame.flags & 0b10000000)
+		{
+			climb_on = !climb_on;
+			climb.set_value(climb_on);
+		}
 	}
 
 	left_motors.move_velocity(0);
@@ -132,12 +141,12 @@ void autonomous()
 	lb.move_velocity(0);
 	intake.move_velocity(0);
 }
-int quad_curve(int input, int max_rpm)
+int32_t quad_curve(int32_t input, int32_t max_rpm)
 {
 	float norm = input / 127.0f;
-	int sign = (norm >= 0) ? 1 : -1;
+	int32_t sign = (norm >= 0) ? 1 : -1;
 	float curved = norm * norm * sign;
-	return static_cast<int>(curved * max_rpm);
+	return static_cast<int32_t>(curved * max_rpm);
 }
 double get_lb_angle()
 {
@@ -166,10 +175,10 @@ void opcontrol()
 	uint32_t last_timestamp = pros::millis();
 	while (true)
 	{
-		int power = quad_curve(master.get_analog(ANALOG_LEFT_Y), 600);
-		int turn = quad_curve(master.get_analog(ANALOG_RIGHT_X), 600);
-		int left_input = power + turn;
-		int right_input = power - turn;
+		int32_t power = quad_curve(master.get_analog(ANALOG_LEFT_Y), 600);
+		int32_t turn = quad_curve(master.get_analog(ANALOG_RIGHT_X), 600);
+		int32_t left_input = power + turn;
+		int32_t right_input = power - turn;
 
 		if (master.get_digital_new_press(DIGITAL_Y) && !pros::competition::is_connected())
 			autonomous();
@@ -242,7 +251,8 @@ void opcontrol()
 						(current_state.intake_l2 << 3) |
 						(current_state.intake_r2 << 4) |
 						(current_state.solenoid_toggle << 5) |
-						(current_state.doinker_toggle << 6);
+						(current_state.doinker_toggle << 6) |
+						(current_state.climb_toggle << 7);
 
 				frames.push_back(frame);
 				prev_state = current_state;
@@ -292,6 +302,11 @@ void opcontrol()
 		{
 			doinker_on = !doinker_on;
 			doinker.set_value(doinker_on);
+		}
+		if (master.get_digital_new_press(DIGITAL_X))
+		{
+			climb_on = !climb_on;
+			climb.set_value(climb_on);
 		}
 		intake.move_velocity(intake_power);
 		left_motors.move_velocity(left_input);
