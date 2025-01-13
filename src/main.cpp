@@ -3,11 +3,9 @@
 const double LB_GEAR_RATIO = 4.0;
 const double LB_MIN_ANGLE = 15.0;
 const double LB_MAX_ANGLE = 120.0;
-double flip = 1.0;
 
 pros::Optical colour_sensor(19);
 pros::Rotation lb_rotation(20);
-auto imu = std::make_shared<okapi::IMU>(7);
 
 pros::Motor lb(10, pros::v5::MotorGears::green, pros::v5::MotorEncoderUnits::degrees);
 pros::MotorGroup intake({8, -9}, pros::v5::MotorGears::green);
@@ -32,47 +30,20 @@ struct action_frame
 	int8_t left_input;
 	int8_t right_input;
 	uint8_t flags; // flags: lb_right, lb_left, intake_l1, intake_l2, intake_r2, solenoid_toggle, doinker_toggle, climb_toggle
-};
-
-struct controller_state
-{
-	int32_t left_input = 0;
-	int32_t right_input = 0;
-	bool lb_right = false;
-	bool lb_left = false;
-	bool intake_l1 = false;
-	bool intake_l2 = false;
-	bool intake_r2 = false;
-	bool solenoid_toggle = false;
-	bool doinker_toggle = false;
-	bool climb_toggle = false;
-
-	bool operator!=(const controller_state &other) const
+	
+	inline bool operator!=(const action_frame &other) const
 	{
-		return left_input != other.left_input ||
-					 right_input != other.right_input ||
-					 lb_right != other.lb_right ||
-					 lb_left != other.lb_left ||
-					 intake_l1 != other.intake_l1 ||
-					 intake_l2 != other.intake_l2 ||
-					 intake_r2 != other.intake_r2 ||
-					 solenoid_toggle != other.solenoid_toggle ||
-					 doinker_toggle != other.doinker_toggle ||
-					 climb_toggle != other.climb_toggle;
+		return left_input != other.left_input || right_input != other.right_input || flags != other.flags;
 	}
 };
 
-controller_state prev_state;
-int64_t last_record_time = 0;
-
 bool recording = false;
 std::vector<action_frame> frames;
+
 void initialize()
 {
 	pros::lcd::initialize();
 	lb.set_brake_mode(pros::E_MOTOR_BRAKE_HOLD);
-	intake_power = 0;
-	intake_running = false;
 	std::ifstream file("/usd/tournament.bin", std::ios::binary);
 	frames.reserve(24000);
 	if (file.is_open())
@@ -223,42 +194,33 @@ void opcontrol()
 				master.print(0, 0, "Recording");
 			}
 		}
+		
 		if (recording)
 		{
+			static uint32_t last_timestamp = pros::millis();
+			static action_frame previous_frame{0, 0, 0, 0};
+			action_frame frame;
 			uint32_t current_time = pros::millis();
-			controller_state current_state;
-			current_state.left_input = master.get_analog(ANALOG_LEFT_Y);
-			current_state.right_input = master.get_analog(ANALOG_RIGHT_X);
-			current_state.lb_right = master.get_digital(DIGITAL_RIGHT);
-			current_state.lb_left = master.get_digital(DIGITAL_LEFT);
-			current_state.intake_l1 = master.get_digital(DIGITAL_L1);
-			current_state.intake_l2 = master.get_digital_new_press(DIGITAL_L2);
-			current_state.intake_r2 = master.get_digital_new_press(DIGITAL_R2);
-			current_state.solenoid_toggle = master.get_digital_new_press(DIGITAL_R1);
-			current_state.doinker_toggle = master.get_digital_new_press(DIGITAL_A);
-
-			if ((current_state != prev_state) || frames.empty())
+			frame.timestamp_delta = current_time - last_timestamp;
+			frame.left_input = master.get_analog(ANALOG_LEFT_Y);
+			frame.right_input = master.get_analog(ANALOG_RIGHT_X);
+			frame.flags = 
+					(master.get_digital(DIGITAL_RIGHT) << 0) |
+					(master.get_digital(DIGITAL_LEFT) << 1)  |
+					(master.get_digital(DIGITAL_L1) << 2)    |
+					(master.get_digital_new_press(DIGITAL_L2) << 3) |
+					(master.get_digital_new_press(DIGITAL_R2) << 4) |
+					(master.get_digital_new_press(DIGITAL_R1) << 5) |
+					(master.get_digital_new_press(DIGITAL_A) << 6)  |
+					(master.get_digital_new_press(DIGITAL_X) << 7);
+			if (frame != previous_frame || frames.empty())
 			{
-				action_frame frame;
-				frame.timestamp_delta = current_time - last_timestamp;
-				frame.left_input = current_state.left_input;
-				frame.right_input = current_state.right_input;
-
-				frame.flags =
-						(current_state.lb_right << 0) |
-						(current_state.lb_left << 1) |
-						(current_state.intake_l1 << 2) |
-						(current_state.intake_l2 << 3) |
-						(current_state.intake_r2 << 4) |
-						(current_state.solenoid_toggle << 5) |
-						(current_state.doinker_toggle << 6) |
-						(current_state.climb_toggle << 7);
-
 				frames.push_back(frame);
-				prev_state = current_state;
+				previous_frame = frame;
+				last_timestamp = current_time;
 			}
-			last_timestamp = current_time;
 		}
+
 		if (master.get_digital(DIGITAL_RIGHT))
 		{
 			double current_angle = get_lb_angle();
@@ -279,19 +241,10 @@ void opcontrol()
 			lb.move_velocity(0);
 
 		if (master.get_digital_new_press(DIGITAL_L2))
-		{
 			intake_running = true;
-			intake_power = 200;
-		}
 		if (master.get_digital_new_press(DIGITAL_R2))
-		{
 			intake_running = false;
-			intake_power = 0;
-		}
-		if (master.get_digital(DIGITAL_L1))
-			intake_power = -200;
-		else
-			intake_power = intake_running ? 200 : 0;
+		intake_power = master.get_digital(DIGITAL_L1) ? -200 : (intake_running ? 200 : 0);
 
 		if (master.get_digital_new_press(DIGITAL_R1))
 		{
@@ -308,9 +261,11 @@ void opcontrol()
 			climb_on = !climb_on;
 			climb.set_value(climb_on);
 		}
+
 		intake.move_velocity(intake_power);
 		left_motors.move_velocity(left_input);
 		right_motors.move_velocity(right_input);
+
 		pros::delay(5);
 	}
 }
