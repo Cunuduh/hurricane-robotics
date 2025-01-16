@@ -78,7 +78,7 @@ void opcontrol(void);
 #include <string>
 #include <numeric>
 #include <vector>
-#include <atomic>
+#include <bitset>
 #include <fstream>
 #endif
 
