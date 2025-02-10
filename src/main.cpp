@@ -5,6 +5,7 @@ const double LB_MAX_ANGLE = 110.0;
 
 pros::Optical colour_sensor(19);
 pros::Rotation lb_rotation(20);
+pros::IMU imu(21);
 
 pros::Motor lb(10, pros::v5::MotorGears::green, pros::v5::MotorEncoderUnits::degrees);
 pros::MotorGroup intake({8, -9}, pros::v5::MotorGears::green);
@@ -18,16 +19,21 @@ pros::ADIDigitalOut climb('C');
 pros::Controller master(pros::E_CONTROLLER_MASTER);
 
 int32_t intake_power = 0;
+bool intake_running = false;
 bool solenoid_on = false;
 bool doinker_on = false;
 bool climb_on = false;
+
+double lb_presets[] = {5.0, 17.0, LB_MAX_ANGLE};
+size_t lb_preset_index = 0;
+bool moving_lb = false;
 
 struct action_frame
 {
 	uint16_t timestamp_delta;
 	int8_t left_input;
 	int8_t right_input;
-	uint8_t flags; // flags: lb_right, lb_left, intake_l1, intake_l2, intake_r2, solenoid_toggle, doinker_toggle, climb_toggle
+	uint16_t flags; // flags: lb_right, lb_left, intake_l1, intake_l2, intake_r2, solenoid_toggle, doinker_toggle, climb_toggle, lb_up, lb_down
 
 	inline bool operator!=(const action_frame &other) const
 	{
@@ -38,11 +44,10 @@ struct action_frame
 bool recording = false;
 std::vector<action_frame> frames;
 
-int32_t quad_curve(int32_t input, int32_t max_rpm)
+int32_t cube_curve(int32_t input, int32_t max_rpm)
 {
 	float norm = input / 127.0f;
-	int32_t sign = (norm >= 0) ? 1 : -1;
-	float curved = norm * norm * sign;
+	float curved = norm * norm * norm;
 	return static_cast<int32_t>(curved * max_rpm);
 }
 double get_lb_angle()
@@ -55,7 +60,10 @@ void initialize()
 	master.clear();
 	solenoid.set_value(solenoid_on);
 	doinker.set_value(doinker_on);
+	lb_rotation.reset_position();
+	imu.reset();
 	lb.set_brake_mode(pros::E_MOTOR_BRAKE_HOLD);
+
 	std::ifstream file("/usd/tournament.bin", std::ios::binary);
 	frames.reserve(24000);
 	if (file.is_open())
@@ -86,19 +94,91 @@ void autonomous()
 		while (pros::millis() < current_time)
 			pros::delay(1);
 
-		int32_t power = quad_curve(frame.left_input, 600);
-		int32_t turn = quad_curve(frame.right_input, 600);
+		int32_t power = cube_curve(frame.left_input, 600);
+		int32_t turn = cube_curve(frame.right_input, 600);
 		left_motors.move_velocity(power + turn);
 		right_motors.move_velocity(power - turn);
 
-		lb.move_velocity((frame.flags & 0b1) ? 100 : (frame.flags & 0b10) ? -100
-																																			: 0);
+		if (frame.flags & 0b1)
+		{
+			if (lb_preset_index > 0)
+				lb_preset_index--;
+		}
+		if (frame.flags & 0b10)
+		{
+			if (lb_preset_index < 2)
+				lb_preset_index++;
+		}
+		if (frame.flags & 0b100000000)
+		{
+			if (0 <= lb_preset_index && lb_preset_index < 2)
+			{
+				lb_preset_index++;
+				moving_lb = true;
+			}
+		}
+		if (frame.flags & 0b1000000000)
+		{
+			if (0 <= lb_preset_index && lb_preset_index < 2)
+			{
+				lb_preset_index--;
+				moving_lb = true;
+			}
+		}
+		else if (moving_lb)
+		{
+			double current_angle = get_lb_angle();
+			double target_angle = lb_presets[lb_preset_index];
+			double error = target_angle - current_angle;
+
+			if (std::fabs(error) > 5)
+			{
+				int vel = static_cast<int>(error * 2);
+				if (vel > 100)
+				{
+					vel = 100;
+				}
+				if (vel < -100)
+				{
+					vel = -100;
+				}
+				lb.move_velocity(vel);
+			}
+			else
+			{
+				lb.move_velocity(0);
+				moving_lb = false;
+			}
+		}
+		else
+		{
+			lb.move_velocity(0);
+		}
 		if (frame.flags & 0b1000)
-			intake.move_velocity(200);
+		{
+			intake_running = true;
+		}
 		else if (frame.flags & 0b10000)
-			intake.move_velocity(0);
-		if (frame.flags & 0b100 && frame.flags & 0b1000)
-			intake.move_velocity(-200);
+		{
+			intake_running = false;
+		}
+
+		if (intake_running)
+		{
+			if (frame.flags & 0b100)
+			{
+				intake_power = -200;
+			}
+			else
+			{
+				intake_power = 200;
+			}
+		}
+		else
+		{
+			intake_power = 0;
+		}
+		intake.move_velocity(intake_power);
 
 		if (frame.flags & 0b100000)
 		{
@@ -155,8 +235,8 @@ void opcontrol()
 		int32_t analog_left_y = master.get_analog(ANALOG_LEFT_Y);
 		int32_t analog_right_x = master.get_analog(ANALOG_RIGHT_X);
 
-		int32_t power = quad_curve(analog_left_y, 600);
-		int32_t turn = quad_curve(analog_right_x, 600);
+		int32_t power = cube_curve(analog_left_y, 600);
+		int32_t turn = cube_curve(analog_right_x, 600);
 		int32_t left_input = power + turn;
 		int32_t right_input = power - turn;
 
@@ -223,7 +303,9 @@ void opcontrol()
 					(r2_press << 4) |
 					(r1_press << 5) |
 					(a_press << 6) |
-					(x_press << 7);
+					(x_press << 7) |
+					(master.get_digital(DIGITAL_UP) << 8) |
+					(master.get_digital(DIGITAL_DOWN) << 9);
 			if (frame != previous_frame || frames.empty())
 			{
 				frames.push_back(frame);
@@ -233,12 +315,29 @@ void opcontrol()
 			pros::lcd::print(0, "%d,%d,%d", frame.left_input, frame.right_input, frame.flags);
 		}
 		if (l2_press)
-			intake_power = 200;
+		{
+			intake_running = true;
+		}
 		else if (r2_press)
-			intake_power = 0;
-		if (master.get_digital(DIGITAL_L1) && l2_press)
-			intake_power = -200;
+		{
+			intake_running = false;
+		}
 
+		if (intake_running)
+		{
+			if (master.get_digital(DIGITAL_L1))
+			{
+				intake_power = -200;
+			}
+			else
+			{
+				intake_power = 200;
+			}
+		}
+		else
+		{
+			intake_power = 0;
+		}
 
 		if (r1_press)
 		{
@@ -256,26 +355,66 @@ void opcontrol()
 			climb.set_value(climb_on);
 		}
 
-		if (master.get_digital(DIGITAL_RIGHT))
+		if (master.get_digital_new_press(DIGITAL_LEFT))
 		{
-			double current_angle = get_lb_angle();
-			if (current_angle < LB_MAX_ANGLE)
-				lb.move_velocity(100);
-			else
-				lb.move_velocity(0);
+			if (lb_preset_index > 0)
+			{
+				lb_preset_index--;
+				moving_lb = true;
+			}
 		}
-		else if (master.get_digital(DIGITAL_LEFT))
+		if (master.get_digital_new_press(DIGITAL_RIGHT)) 
 		{
-			double current_angle = get_lb_angle();
+			if (lb_preset_index < 2)
+			{
+				lb_preset_index++;
+				moving_lb = true;
+			}
+		}
+
+		if (master.get_digital(DIGITAL_UP))
+		{
+			lb.move_velocity(100);
+		}
+		else if (master.get_digital(DIGITAL_DOWN))
+		{
 			lb.move_velocity(-100);
 		}
+		else if (moving_lb)
+		{
+			double current_angle = get_lb_angle();
+			double target_angle = lb_presets[lb_preset_index];
+			double error = target_angle - current_angle;
+			
+			if (std::fabs(error) > 5)
+			{
+				int vel = static_cast<int>(error * 2);
+				if (vel > 100)
+				{
+					vel = 100;
+				}
+				if (vel < -100)
+				{
+					vel = -100;
+				}
+				lb.move_velocity(vel);
+			}
+			else
+			{
+				lb.move_velocity(0);
+				moving_lb = false;
+			}
+		}
 		else
+		{
 			lb.move_velocity(0);
+		}
 
 		intake.move_velocity(intake_power);
 		left_motors.move_velocity(left_input);
 		right_motors.move_velocity(right_input);
 		pros::lcd::print(1, "LB: %.2f", get_lb_angle());
+		pros::lcd::print(2, "LB Preset: %d ", lb_preset_index);
 		pros::delay(3);
 	}
 }
