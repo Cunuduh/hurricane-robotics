@@ -4,109 +4,67 @@ pros::Optical colour_sensor(19);
 pros::Rotation lb_rotation(20);
 auto imu = std::make_shared<okapi::IMU>(7);
 pros::MotorGroup intake({8, -9}, pros::v5::MotorGears::green);
-std::atomic<int> intake_power{0};
-std::atomic<bool> intake_running{false};
-std::atomic<bool> colour_rejection_active{false};
-std::atomic<int> last_rejection_time{0};
+int32_t intake_power{0};
+bool intake_running{false};
+bool colour_rejection_active{false};
+int32_t last_rejection_time{0};
 pros::Motor lb(10, pros::v5::MotorGears::green);
 pros::ADIDigitalOut solenoid('A');
+pros::ADIDigitalOut doinker('B');
 pros::Controller master(pros::E_CONTROLLER_MASTER);
 pros::MotorGroup left_motors({-4, -5, 6}, pros::v5::MotorGears::blue);
 pros::MotorGroup right_motors({1, 2, -3}, pros::v5::MotorGears::blue);
-enum class colour
+int32_t intake_power = 0;
+bool intake_running = false;
+bool solenoid_on = false;
+bool doinker_on = false;
+bool climb_on = false;
+
+double lb_presets[] = {5.0, 17.0, 110.0};
+size_t lb_preset_index = 0;
+bool moving_lb = false;
+double get_lb_angle()
 {
-	RED,
-	BLUE,
-	NONE
-};
-colour team_colour = colour::BLUE;
-colour detect_colour()
-{
-	double hue = colour_sensor.get_hue();
-	if (colour_sensor.get_proximity() > 128)
-	{
-		master.print(1, 0, "None");
-		return colour::NONE;
-	}
-	// 330-30 degrees = red
-	if (hue >= 330.0 || hue <= 30.0)
-	{
-		master.print(1, 0, "Red ");
-		return colour::RED;
-	}
-	// 150-210 degrees = blue
-	else if (hue >= 150.0 && hue <= 210.0)
-	{
-		master.print(1, 0, "Blue");
-		return colour::BLUE;
-	}
-	else
-	{
-		master.print(1, 0, "None");
-		return colour::NONE;
-	}
+	return lb_rotation.get_position() / 100.0;
 }
 void initialize()
 {
 	pros::lcd::initialize();
 	lb.set_brake_mode(pros::E_MOTOR_BRAKE_HOLD);
 	lb_rotation.reset_position();
-	std::string team = (team_colour == colour::RED) ? "Red" : "Blue";
-	master.print(0, 0, ("Team:" + team).c_str());
-	master.print(1, 0, "None");
-	master.print(2, 0, "FilterOff");
 	intake_power = 0;
 	intake_running = false;
-	colour_rejection_active = false;
-	pros::Task colour_rejection_task{[&]
-	{
-		return;
-		while (true)
-		{
-			if (intake_power != 0)
-			{
-				colour detected = detect_colour();
-				if (detected != colour::NONE && detected != team_colour)
-				{
-					colour_rejection_active = true;
-					last_rejection_time = pros::millis();
-					intake.move(0);
-				}
-				if (colour_rejection_active && (pros::millis() - last_rejection_time > 500))
-				{
-					colour_rejection_active = false;
-					intake.move(intake_power);
-				}
-			}
-			pros::delay(30);
-		}
-	}};
 }
 void disabled() {}
 void competition_initialize() {}
-void activate_intake(int duration_ms = 0, int rpm = 300) // Changed from power to rpm
+void activate_intake(int duration_ms = 0, int rpm = 200)
 {
-    intake.move_velocity(rpm);
-    pros::delay(duration_ms);
-    intake.move_velocity(0);
+	intake.move_velocity(rpm);
+	pros::delay(duration_ms);
+	intake.move_velocity(0);
 }
 
 void activate_lb(int duration_ms = 0)
 {
-    lb.move_velocity(300);
-    pros::delay(duration_ms);
-    lb.move_velocity(-300);
-    pros::delay(duration_ms);
-    lb.move_velocity(0);
+	lb.move_velocity(200);
+	pros::delay(duration_ms);
+	lb.move_velocity(-200);
+	pros::delay(duration_ms);
+	lb.move_velocity(0);
 }
 void autonomous_skills()
 {}
 void turn(std::shared_ptr<okapi::ChassisController> chassis, okapi::QAngle angle)
 {
 	double initial_velocity = chassis->getMaxVelocity();
-	chassis->setMaxVelocity(200);
+	chassis->setMaxVelocity(150);
 	chassis->turnAngle(angle);
 	chassis->setMaxVelocity(initial_velocity);
+}
+void activate_sol()
+{
+	solenoid_on = !solenoid_on;
+	solenoid.set_value(solenoid_on);
 }
 void autonomous()
 {
@@ -127,90 +85,157 @@ void autonomous()
 			.withClosedLoopControllerTimeUtil(
 				10.0,
 				2.5,
-				300_ms
+				200_ms
 			)
 			.build();
 	imu->calibrate();
-	// go in infinite square
-	chassis->setMaxVelocity(300);
-	while (true)
-	{
-		chassis->moveDistance(2_ft);
-		turn(chassis, 90_deg);
-	}
+	chassis->setMaxVelocity(200);
+
+	activate_intake(2000); // Deposit preload ring into alliance wall stake
+	chassis->moveDistance(1.25_ft);
+	chassis->turnAngle(90_deg);
+	chassis->moveDistance(-3_ft); // pick up first mobile goal
+	activate_sol();
+	chassis->turnAngle(180_deg);
+	activate_intake();
+	chassis->moveDistance(4_ft);
+	chassis->moveDistance(-2_ft);
+	chassis->turnAngle(-90_deg);
+	chassis->moveDistance(2_ft); // nab three rings top left corner
+	chassis->moveDistance(-1_ft);
+	chassis->turnAngle(180_deg);
+	chassis->moveDistance(3.25_ft);
+	chassis->turnAngle(22.5_deg);
+	chassis->moveDistance(1.8_ft);
+	chassis->turnAngle(167_deg);
+	chassis->moveDistance(3.75_ft);
+	chassis->turnAngle(-105_deg);
+	chassis->moveDistance(-5.7_ft);
+	activate_sol();
+	
 }
-int quad_curve(int input, int max_rpm)
+int cube_curve(int input, int max_rpm)
 {
 	float norm = input / 127.0f;
-	int sign = (norm >= 0) ? 1 : -1;
-	float curved = norm * norm * sign;
+	float curved = norm * norm * norm;
 	return static_cast<int>(curved * max_rpm);
 }
 void opcontrol()
 {
-	static bool override_active = false;
-	static bool solenoid_state = false;
-	static bool doinker_state = false;
-	static bool climb_state = false;
-	
 	while (true)
 	{
-		int power = quad_curve(master.get_analog(ANALOG_LEFT_Y), 600);
-		int turn = quad_curve(master.get_analog(ANALOG_RIGHT_X), 600);
-		int left_input = power + turn;
-		int right_input = power - turn;
+		bool l2_press = master.get_digital_new_press(DIGITAL_L2);
+		bool r2_press = master.get_digital_new_press(DIGITAL_R2);
+		bool r1_press = master.get_digital_new_press(DIGITAL_R1);
+		bool a_press = master.get_digital_new_press(DIGITAL_A);
+		bool x_press = master.get_digital_new_press(DIGITAL_X);
+		int32_t analog_left_y = master.get_analog(ANALOG_LEFT_Y);
+		int32_t analog_right_x = master.get_analog(ANALOG_RIGHT_X);
 
-		if (master.get_digital_new_press(DIGITAL_A))
-		{
+		int32_t power = cube_curve(analog_left_y, 600);
+		int32_t turn = cube_curve(analog_right_x, 600);
+		int32_t left_input = power + turn;
+		int32_t right_input = power - turn;
+
+		if (master.get_digital_new_press(DIGITAL_Y) && !pros::competition::is_connected())
 			autonomous();
+
+		if (l2_press)
+		{
+			intake_running = true;
+		}
+		else if (r2_press)
+		{
+			intake_running = false;
 		}
 
-		if (master.get_digital(DIGITAL_RIGHT))
+		if (intake_running)
 		{
-			lb.move_velocity(300); // Green cartridge
+			if (master.get_digital(DIGITAL_L1))
+			{
+				intake_power = -200;
+			}
+			else
+			{
+				intake_power = 200;
+			}
 		}
-		else if (master.get_digital(DIGITAL_LEFT))
+		else
 		{
-			lb.move_velocity(-300); // Green cartridge
+			intake_power = 0;
+		}
+
+		if (r1_press)
+		{
+			solenoid_on = !solenoid_on;
+			solenoid.set_value(solenoid_on);
+		}
+		if (a_press)
+		{
+			doinker_on = !doinker_on;
+			doinker.set_value(doinker_on);
+		}
+
+		if (master.get_digital_new_press(DIGITAL_LEFT))
+		{
+			if (lb_preset_index > 0)
+			{
+				lb_preset_index--;
+				moving_lb = true;
+			}
+		}
+		if (master.get_digital_new_press(DIGITAL_RIGHT)) 
+		{
+			if (lb_preset_index < 2)
+			{
+				lb_preset_index++;
+				moving_lb = true;
+			}
+		}
+
+		if (master.get_digital(DIGITAL_UP))
+		{
+			lb.move_velocity(100);
+		}
+		else if (master.get_digital(DIGITAL_DOWN))
+		{
+			lb.move_velocity(-100);
+		}
+		else if (moving_lb)
+		{
+			double current_angle = get_lb_angle();
+			double target_angle = lb_presets[lb_preset_index];
+			double error = target_angle - current_angle;
+			
+			if (std::fabs(error) > 5)
+			{
+				int vel = static_cast<int>(error * 2);
+				if (vel > 100)
+				{
+					vel = 100;
+				}
+				if (vel < -100)
+				{
+					vel = -100;
+				}
+				lb.move_velocity(vel);
+			}
+			else
+			{
+				lb.move_velocity(0);
+				moving_lb = false;
+			}
 		}
 		else
 		{
 			lb.move_velocity(0);
 		}
 
-		if (master.get_digital_new_press(DIGITAL_L2))
-		{
-			intake_running = true;
-			intake_power = 300; // Green cartridge
-		}
-		if (master.get_digital_new_press(DIGITAL_R2))
-		{
-			intake_running = false;
-			intake_power = 0;
-		}
-		if (master.get_digital(DIGITAL_L1))
-		{
-			intake_power = -300; // Green cartridge
-		}
-		else
-		{
-			intake_power = intake_running ? 300 : 0; // Green cartridge
-		}
-
-		if (master.get_digital_new_press(DIGITAL_R1))
-		{
-			solenoid_state = !solenoid_state;
-			solenoid.set_value(solenoid_state);
-		}
-
-		left_motors.move_velocity(left_input);  // Blue cartridge
-		right_motors.move_velocity(right_input); // Blue cartridge
-
-		if (!colour_rejection_active || override_active)
-		{
-			intake.move_velocity(intake_power);
-		}
-
-		pros::delay(5);
+		intake.move_velocity(intake_power);
+		left_motors.move_velocity(left_input);
+		right_motors.move_velocity(right_input);
+		pros::lcd::print(1, "LB: %.2f", get_lb_angle());
+		pros::lcd::print(2, "LB Preset: %d ", lb_preset_index);
+		pros::delay(3);
 	}
 }
