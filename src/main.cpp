@@ -178,20 +178,16 @@ void opcontrol()
 
 		if (intake_running)
 		{
-			if (l1_held)
-			{
-				intake_power = -200;
-			}
-			else
-			{
-				intake_power = 200;
-			}
+			intake_power = 200;
+		}
+		else if (l1_held)
+		{
+			intake_power = -200;
 		}
 		else
 		{
 			intake_power = 0;
 		}
-
 		if (r1_press)
 		{
 			solenoid_on = !solenoid_on;
