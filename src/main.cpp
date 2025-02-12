@@ -36,7 +36,9 @@ void competition_initialize() {}
 void activate_intake(int duration_ms = 0, int rpm = 200)
 {
 	intake.move_velocity(rpm);
-	pros::delay(duration_ms);
+	if (duration_ms > 0)
+		pros::delay(duration_ms);
+	else return;
 	intake.move_velocity(0);
 }
 
@@ -106,8 +108,32 @@ void autonomous()
 	chassis->moveDistance(-0.5_ft);
 	chassis->turnAngle(135_deg);
 	chassis->moveDistance(1.5_ft); // pick up sixth ring
+	intake.move_velocity(0);
 	chassis->turnAngle(90_deg);
-	chassis->moveDistance(2_ft); // back up into corner
+	chassis->moveDistance(-2_ft); // back up into corner and drop mobile goal
+	activate_sol();
+	chassis->moveDistance(1.5_ft);
+	chassis->turnAngle(45_deg);
+	chassis->moveDistance(6_ft);
+	chassis->turnAngle(180_deg);
+	chassis->moveDistance(-1.5_ft);
+	activate_sol();
+	chassis->moveDistance(-1.5_ft);
+	chassis->turnAngle(90_deg);
+	activate_intake();
+	chassis->moveDistance(2.25_ft);
+	chassis->turnAngle(56.3_deg);
+	chassis->moveDistance(3.75_ft);
+	chassis->turnAngle(146.2_deg);
+	chassis->moveDistance(2.25_ft);
+	chassis->turnAngle(-33.7_deg);
+	chassis->moveDistance(3.5_ft);
+	chassis->moveDistance(-0.5_ft);
+	chassis->turnAngle(-135_deg);
+	chassis->moveDistance(1.5_ft);
+	intake.move_velocity(0);
+	chassis->turnAngle(-90_deg);
+	chassis->moveDistance(-2_ft);
 	activate_sol();
 }
 int cube_curve(int input, int max_rpm)
@@ -132,7 +158,6 @@ void opcontrol()
 		bool left_held = master.get_digital(DIGITAL_LEFT);
 		int32_t analog_left_y = master.get_analog(ANALOG_LEFT_Y);
 		int32_t analog_right_x = master.get_analog(ANALOG_RIGHT_X);
-
 
 		int32_t power = cube_curve(analog_left_y, 600);
 		int32_t turn = cube_curve(analog_right_x, 600);
