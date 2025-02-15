@@ -4,17 +4,14 @@ pros::Optical colour_sensor(19);
 pros::Rotation lb_rotation(20);
 auto imu = std::make_shared<okapi::IMU>(7);
 pros::MotorGroup intake({8, -9}, pros::v5::MotorGears::green);
-int32_t intake_power{0};
-bool intake_running{false};
-bool colour_rejection_active{false};
-int32_t last_rejection_time{0};
+pros::Motor intake_conveyor(8, pros::v5::MotorGears::green);
 pros::Motor lb(10, pros::v5::MotorGears::green);
 pros::ADIDigitalOut solenoid('A');
 pros::ADIDigitalOut doinker('B');
 pros::Controller master(pros::E_CONTROLLER_MASTER);
 pros::MotorGroup left_motors({-4, -5, 6}, pros::v5::MotorGears::blue);
 pros::MotorGroup right_motors({1, 2, -3}, pros::v5::MotorGears::blue);
-int32_t intake_power = 0;
+std::atomic<int32_t> intake_power{0};
 bool intake_running = false;
 bool solenoid_on = false;
 bool doinker_on = false;
@@ -35,7 +32,8 @@ void disabled() {}
 void competition_initialize() {}
 void activate_intake(int duration_ms = 0, int rpm = 200)
 {
-	intake.move_velocity(rpm);
+	intake_power = rpm;
+	intake.move_velocity(intake_power);
 	if (duration_ms > 0)
 		pros::delay(duration_ms);
 	else return;
@@ -50,22 +48,44 @@ void activate_lb(int duration_ms = 0)
 	pros::delay(duration_ms);
 	lb.move_velocity(0);
 }
-void autonomous_skills()
-{}
+
 void turn(std::shared_ptr<okapi::ChassisController> chassis, okapi::QAngle angle)
 {
 	double initial_velocity = chassis->getMaxVelocity();
-	chassis->setMaxVelocity(150);
+	chassis->setMaxVelocity(133);
 	chassis->turnAngle(angle);
 	chassis->setMaxVelocity(initial_velocity);
 }
-void activate_sol()
+void activate_sol(bool value)
 {
-	solenoid_on = !solenoid_on;
+	solenoid_on = value;
 	solenoid.set_value(solenoid_on);
+}
+
+bool is_intake_stalled(const pros::MotorGroup& motors, int threshold = 60)
+{
+	return std::abs(motors.get_actual_velocity_all()[0]) < 10 && 
+				 std::abs(motors.get_target_velocity_all()[0]) > threshold;
+}
+
+void attempt_unjam()
+{
+	intake_conveyor.move_velocity(-200);
+	pros::delay(500);
+	intake_conveyor.move_velocity(intake_power);
 }
 void autonomous()
 {
+	pros::Task intake_task{[&]{
+    while (true)
+		{
+      if (is_intake_stalled(intake))
+			{
+        attempt_unjam();
+      }
+      pros::delay(100);
+    }
+	}};
 	std::shared_ptr<okapi::ChassisController> chassis =
 		okapi::ChassisControllerBuilder()
 			.withMotors({-4, -5, 6}, {1, 2, -3})
@@ -76,66 +96,144 @@ void autonomous()
 				imu
 			)
 			.withGains(
-				{0.0040, 0.000, 0.000025}, // Distance controller gains
-				{0.0045, 0.002, 0.000050}, // Turn controller gains
+				{0.0040, 0.000, 0.00003}, // Distance controller gains
+				{0.0045, 0.000, 0.000005}, // Turn controller gains
 				{0.0003, 0.000, 0.000025}  // Angle controller gains (helps drive straight)
 			)
-			.withClosedLoopControllerTimeUtil(
-				10.0,
-				2.5,
-				200_ms
+			.build();
+	if (!pros::competition::is_autonomous())
+	{
+		imu->calibrate();
+	}
+	chassis->setMaxVelocity(263);
+	
+	chassis->moveDistance(-1.425_ft);
+	turn(chassis, 30_deg * flip);
+	chassis->moveDistanceAsync(-2.5_ft);
+	pros::delay(500);
+	solenoid.set_value(true);
+	pros::delay(500);
+	turn(chassis, 60_deg * flip);
+	intake.move_velocity(200);
+	chassis->moveDistance(2_ft);
+	turn(chassis, 75_deg * flip);
+	chassis->setMaxVelocity(75);
+	chassis->moveDistance(1.75_ft);
+	chassis->moveDistance(-1.75_ft);
+	turn(chassis, 30_deg * flip);
+	chassis->moveDistance(1.75_ft);
+	chassis->moveDistance(-1.75_ft);
+	turn(chassis, -90_deg * flip);
+}
+void autonomous_skills()
+{
+	pros::Task intake_task{[&]{
+		pros::delay(3000);
+    while (true)
+		{
+      if (is_intake_stalled(intake))
+			{
+        attempt_unjam();
+      }
+      pros::delay(100);
+    }
+	}};
+	std::shared_ptr<okapi::ChassisController> chassis =
+		okapi::ChassisControllerBuilder()
+			.withMotors({-4, -5, 6}, {1, 2, -3})
+			.withDimensions({okapi::AbstractMotor::gearset::blue, (72.0 / 48.0)}, {{3.25_in, 15.5_in}, okapi::imev5BlueTPR})
+			.withSensors(
+				std::make_shared<okapi::IntegratedEncoder>(6, false),
+				std::make_shared<okapi::IntegratedEncoder>(3, true),
+				imu
+			)
+			.withGains(
+				{0.0040, 0.000, 0.00003}, // Distance controller gains
+				{0.0045, 0.000, 0.000005}, // Turn controller gains
+				{0.0003, 0.000, 0.000025}  // Angle controller gains (helps drive straight)
 			)
 			.build();
-	imu->calibrate();
-	chassis->setMaxVelocity(200);
+	if (!pros::competition::is_autonomous())
+	{
+		imu->calibrate();
+	}
+	chassis->setMaxVelocity(263);
 
-	activate_intake(2000); // Deposit preload ring into alliance wall stake
-	chassis->moveDistance(1.25_ft);
-	chassis->turnAngle(90_deg);
-	chassis->moveDistance(-2.25_ft); // pick up first mobile goal
-	activate_sol();
-	chassis->moveDistance(1_ft);
-	chassis->moveDistance(-1_ft);
-	chassis->turnAngle(-90_deg);
-	activate_intake();
-	chassis->moveDistance(2.25_ft); // pick up first ring
-	chassis->turnAngle(-56.3_deg); // arctan(3/2)
-	chassis->moveDistance(3.75_ft); // pick up second ring
-	chassis->turnAngle(-146.2_deg);
-	chassis->moveDistance(2.25_ft); // pick up third ring
-	chassis->turnAngle(33.7_deg);
-	chassis->moveDistance(3.5_ft); // pick up fourth and fifth rings
-	chassis->moveDistance(-0.5_ft);
-	chassis->turnAngle(135_deg);
-	chassis->moveDistance(1.5_ft); // pick up sixth ring
-	intake.move_velocity(0);
-	chassis->turnAngle(90_deg);
-	chassis->moveDistance(-2_ft); // back up into corner and drop mobile goal
-	activate_sol();
-	chassis->moveDistance(1.5_ft);
-	chassis->turnAngle(45_deg);
-	chassis->moveDistance(6_ft);
-	chassis->turnAngle(180_deg);
+	activate_intake(2000);
+	chassis->moveDistance(1.425_ft);
+	turn(chassis, 90_deg);
+	chassis->moveDistanceAsync(-2.5_ft);
+	pros::delay(500);
+	solenoid.set_value(true);
+	intake_power = 200;
+	intake.move_velocity(200);
+	turn(chassis, -90_deg);
+	chassis->moveDistance(2_ft); // pick up first ring
+	turn(chassis, -90_deg); // originally 95
+	chassis->moveDistance(2_ft); // pick up second ring
+	turn(chassis, 55_deg);
+	chassis->moveDistance(2.5_ft); // pick up third ring
+	chassis->moveDistance(-2.5_ft);
+	turn(chassis, -145_deg); // originally 155
+	chassis->moveDistance(3.25_ft); // pick up fourth and fifth rings
+	chassis->moveDistance(-1.25_ft);
+	turn(chassis, 90_deg);
+	chassis->moveDistanceAsync(1.5_ft); // pick up sixth ring
+	pros::delay(1500);
+	if (!chassis->isSettled())
+	{
+		chassis->stop();
+	}
 	chassis->moveDistance(-1.5_ft);
-	activate_sol();
-	chassis->moveDistance(-1.5_ft);
-	chassis->turnAngle(90_deg);
-	activate_intake();
-	chassis->moveDistance(2.25_ft);
-	chassis->turnAngle(56.3_deg);
-	chassis->moveDistance(3.75_ft);
-	chassis->turnAngle(146.2_deg);
-	chassis->moveDistance(2.25_ft);
-	chassis->turnAngle(-33.7_deg);
-	chassis->moveDistance(3.5_ft);
-	chassis->moveDistance(-0.5_ft);
-	chassis->turnAngle(-135_deg);
-	chassis->moveDistance(1.5_ft);
+	turn(chassis, 135_deg);
+	chassis->moveDistanceAsync(-1.75_ft); // back up into corner and drop mobile goal
+	pros::delay(1000);
+	if (!chassis->isSettled())
+	{
+		chassis->stop();
+	}
+	activate_sol(false);
+	intake_power = 0;
 	intake.move_velocity(0);
-	chassis->turnAngle(-90_deg);
-	chassis->moveDistance(-2_ft);
-	activate_sol();
+	chassis->moveDistance(1.75_ft);
+	turn(chassis, -135_deg); // originally 140
+	chassis->moveDistance(-5_ft);
+
+	// part 2
+	chassis->moveDistanceAsync(-1.5_ft);
+	pros::delay(500);
+	activate_sol(true);
+	intake_power = 200;
+	intake.move_velocity(200);
+	turn(chassis, 90_deg);
+	chassis->moveDistance(2_ft); // pick up first ring
+	turn(chassis, 90_deg);
+	chassis->moveDistance(2_ft); // pick up second ring
+	turn(chassis, -55_deg);
+	chassis->moveDistance(2.5_ft); // pick up third ring
+	chassis->moveDistance(-2.5_ft);
+	turn(chassis, 150_deg);
+	chassis->moveDistance(3.25_ft); // pick up fourth and fifth rings
+	chassis->moveDistance(-1.25_ft);
+	turn(chassis, -90_deg);
+	chassis->moveDistanceAsync(1.5_ft); // pick up sixth ring
+	pros::delay(1500);
+	if (!chassis->isSettled()) {
+			chassis->stop();
+	}
+	chassis->moveDistance(-1.5_ft);
+	turn(chassis, -135_deg);
+	chassis->moveDistanceAsync(-1.75_ft);
+	pros::delay(1000);
+	if (!chassis->isSettled()) {
+			chassis->stop();
+	}
+	activate_sol(false);
+	intake_power = 0;
+	intake.move_velocity(0);
+
 }
+
 int cube_curve(int input, int max_rpm)
 {
 	float norm = input / 127.0f;
@@ -148,8 +246,8 @@ void opcontrol()
 	{
 		bool l2_press = master.get_digital_new_press(DIGITAL_L2);
 		bool r2_press = master.get_digital_new_press(DIGITAL_R2);
+		bool l1_held = master.get_digital(DIGITAL_L1);
 		bool r1_press = master.get_digital_new_press(DIGITAL_R1);
-		bool l1_held = master.get_digital_new_press(DIGITAL_L1);
 		bool a_press = master.get_digital_new_press(DIGITAL_A);
 		bool b_press = master.get_digital_new_press(DIGITAL_B);
 		bool x_press = master.get_digital_new_press(DIGITAL_X);
@@ -158,14 +256,13 @@ void opcontrol()
 		bool left_held = master.get_digital(DIGITAL_LEFT);
 		int32_t analog_left_y = master.get_analog(ANALOG_LEFT_Y);
 		int32_t analog_right_x = master.get_analog(ANALOG_RIGHT_X);
-
 		int32_t power = cube_curve(analog_left_y, 600);
 		int32_t turn = cube_curve(analog_right_x, 600);
 		int32_t left_input = power + turn;
 		int32_t right_input = power - turn;
 
 		if (y_press && !pros::competition::is_connected())
-			autonomous();
+			autonomous_skills();
 
 		if (l2_press)
 		{
@@ -180,13 +277,13 @@ void opcontrol()
 		{
 			intake_power = 200;
 		}
-		else if (l1_held)
-		{
-			intake_power = -200;
-		}
 		else
 		{
 			intake_power = 0;
+		}
+		if (l1_held)
+		{
+			intake_power = -200;
 		}
 		if (r1_press)
 		{
@@ -199,13 +296,17 @@ void opcontrol()
 			doinker.set_value(doinker_on);
 		}
 
-		if (right_held)
+		if (right_held && (get_lb_angle() < 110.0 || get_lb_angle() > 330.0))
 		{
 			lb.move_velocity(100);
 		}
 		else if (left_held)
 		{
 			lb.move_velocity(-100);
+		}
+		else
+		{
+			lb.move_velocity(0);
 		}
 
 		intake.move_velocity(intake_power);
