@@ -76,6 +76,10 @@ void attempt_unjam()
 }
 void autonomous()
 {
+	autonomous_normal();
+}
+void autonomous_normal()
+{
 	pros::Task intake_task{[&]{
     while (true)
 		{
@@ -163,7 +167,7 @@ void autonomous_skills()
 	chassis->moveDistance(1.425_ft);
 	turn(chassis, 90_deg);
 	chassis->moveDistanceAsync(-2.5_ft);
-	pros::delay(500);
+	pros::delay(520);
 	solenoid.set_value(true);
 	intake_power = 200;
 	intake.move_velocity(200);
@@ -201,7 +205,7 @@ void autonomous_skills()
 
 	// part 2
 	chassis->moveDistanceAsync(-1.5_ft);
-	pros::delay(500);
+	pros::delay(520);
 	activate_sol(true);
 	intake_power = 200;
 	intake.move_velocity(200);
@@ -231,7 +235,6 @@ void autonomous_skills()
 	activate_sol(false);
 	intake_power = 0;
 	intake.move_velocity(0);
-
 }
 
 int cube_curve(int input, int max_rpm)
@@ -296,9 +299,13 @@ void opcontrol()
 			doinker.set_value(doinker_on);
 		}
 
-		if (right_held && (get_lb_angle() < 110.0 || get_lb_angle() > 330.0))
+		if (right_held)
 		{
-			lb.move_velocity(100);
+			double current_angle = get_lb_angle();
+			if (current_angle < 110.0 || current_angle > 330.0)
+				lb.move_velocity(100);
+			else
+				lb.move_velocity(0);
 		}
 		else if (left_held)
 		{
