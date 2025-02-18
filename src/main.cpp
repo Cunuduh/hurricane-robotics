@@ -5,7 +5,7 @@ ez::Drive chassis(
 		{-3, 2, 1},
 		7,
 		3.25,
-		600); // remember to change this
+		400);
 
 double get_lb_angle()
 {
