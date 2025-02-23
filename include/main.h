@@ -72,7 +72,7 @@ using namespace okapi::literals;
 extern "C" {
 #endif
 void activate_lb(int);
-void activate_intake(bool);
+void activate_intake(int = 200);
 void activate_sol(bool);
 void autonomous(void);
 void initialize(void);

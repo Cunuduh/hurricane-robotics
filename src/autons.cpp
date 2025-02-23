@@ -13,24 +13,23 @@ void default_constants()
 }
 
 void normal_p() {
-  activate_lb(400);
-  chassis.pid_drive_set(1.425_ft, 64);
+  activate_lb(300);
+  chassis.pid_drive_set(-1.425_ft, 64);
   chassis.pid_wait();
 
   chassis.pid_turn_relative_set(30, 48);
   chassis.pid_wait();
 
-  chassis.pid_drive_set(2.5_ft, 64); 
+  chassis.pid_drive_set(-2.5_ft, 64); 
   pros::delay(500);
-  solenoid.set_value(true);
+  activate_sol(true);
   pros::delay(500);
-  intake_power = 200;
-  intake.move_velocity(200);
+  activate_intake(200);
 
   chassis.pid_turn_relative_set(-120, 48);
   chassis.pid_wait();
 
-  chassis.pid_drive_set(-2.5_ft, 64);
+  chassis.pid_drive_set(2.5_ft, 64);
   chassis.pid_wait();
 
   pros::delay(5000);
@@ -39,123 +38,45 @@ void normal_p() {
 }
 
 void normal_n() {
-  activate_lb(400);
-  chassis.pid_drive_set(1.425_ft, 64);
+  activate_lb(300);
+  chassis.pid_drive_set(-1.425_ft, 64);
   chassis.pid_wait();
 
   chassis.pid_turn_relative_set(30, 48);
   chassis.pid_wait();
 
-  chassis.pid_drive_set(2.55_ft, 64);
+  chassis.pid_drive_set(-2.75_ft, 64);
 
   pros::delay(500);
   activate_sol(true);
-  pros::delay(500);
+  chassis.pid_wait();
 
-  intake_power = 200;
-  intake.move_velocity(200);
+  activate_intake(200);
 
   chassis.pid_turn_relative_set(60, 48);
   chassis.pid_wait();
 
-  chassis.pid_drive_set(-2_ft, 64);
+  chassis.pid_drive_set(2_ft, 64);
   chassis.pid_wait();
 
   chassis.pid_turn_relative_set(75, 48);
   chassis.pid_wait();
 
-  chassis.pid_drive_set(-1.125_ft, 32);
-  chassis.pid_wait();
-
   chassis.pid_drive_set(1.125_ft, 32);
   chassis.pid_wait();
 
+  chassis.pid_drive_set(-1.125_ft, 32);
+  chassis.pid_wait();
+
+  chassis.pid_turn_relative_set(30, 48);
+  chassis.pid_wait();
+
+  chassis.pid_drive_set(1.125_ft, 64);
+  chassis.pid_wait();
+
+  chassis.pid_drive_set(-1.125_ft, 64);
+  chassis.pid_wait();
+
   pros::delay(3000);
-  intake_power = 0;
-  intake.move_velocity(0);
-}
-
-void skills() {
-  activate_lb(400);
-  activate_intake(2000);
-
-  chassis.pid_drive_set(-1.25_ft, 64);
-  chassis.pid_wait();
-
-  chassis.pid_turn_relative_set(90, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(2.45_ft, 64);
-
-  pros::delay(500);
-  activate_sol(true);
-  pros::delay(500);
-
-  intake_power = 200;
-  intake.move_velocity(200);
-
-  chassis.pid_turn_relative_set(-90, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(-2_ft, 64);
-  chassis.pid_wait();
-
-  chassis.pid_turn_relative_set(-90, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(-2_ft, 64);
-  chassis.pid_wait();
-
-  chassis.pid_turn_relative_set(65, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(-1.6_ft, 64);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(1.65_ft, 64);
-  chassis.pid_wait();
-
-  chassis.pid_turn_relative_set(-160, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(-3.25_ft, 64);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(1.25_ft, 64);
-  chassis.pid_wait();
-
-  chassis.pid_turn_relative_set(90, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(-1.5_ft, 64);
-  pros::delay(1500);
-
-  chassis.pid_drive_set(1.5_ft, 64);
-  chassis.pid_wait();
-
-  chassis.pid_turn_relative_set(135, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(1.75_ft, 64);
-  pros::delay(1000);
-
-  activate_sol(false);
-  intake_power = 0;
-  intake.move_velocity(0);
-
-  chassis.pid_drive_set(-1.75_ft, 64);
-  chassis.pid_wait();
-
-  chassis.pid_turn_relative_set(-135, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(5_ft, 64);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(1.5_ft, 64);
-  pros::delay(500);
-  activate_sol(true);
-  pros::delay(500);
-  intake_power = 200;
-  intake.move_velocity(200);
+  activate_intake(0);
 }
