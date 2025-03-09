@@ -1,5 +1,4 @@
 #include "main.h"
-double flip = 1.0;
 ez::Drive chassis(
 	{6, -5, -4},
 	{-3, 2, 1},
@@ -11,14 +10,19 @@ double get_lb_angle()
 {
 	return lb_rotation.get_position() / 100.0;
 }
+void activate_doinker(bool value)
+{
+	doinker_on = value;
+	doinker.set_value(doinker_on);
+}
 void activate_intake(int rpm)
 {
 	intake_power = rpm;
 	intake.move_velocity(intake_power);
 }
-void activate_lb(int duration_ms = 0)
+void activate_lb(int duration_ms, int velocity)
 {
-	lb.move_velocity(200);
+	lb.move_velocity(velocity);
 	pros::delay(duration_ms);
 	lb.move_velocity(0);
 }
@@ -41,18 +45,80 @@ void attempt_unjam()
 	pros::delay(500);
 	intake_conveyor.move_velocity(intake_power);
 }
+enum class Colour
+{
+	RED,
+	BLUE,
+	NONE
+};
+Colour team_colour = Colour::BLUE;
+Colour detect_colour()
+{
+	double hue = colour_sensor.get_hue();
+	if (colour_sensor.get_proximity() < 40)
+	{
+		master.print(1, 0, "None");
+		return Colour::NONE;
+	}
+	if ((hue >= 0.0 && hue <= 30.0) || (hue >= 330.0 && hue <= 359.999))
+	{
+		master.print(1, 0, "Red ");
+		return Colour::RED;
+	}
+	else if (hue >= 150.0 && hue <= 270.0)
+	{
+		master.print(1, 0, "Blue");
+		return Colour::BLUE;
+	}
+	else
+	{
+		master.print(1, 0, "None");
+		return Colour::NONE;
+	}
+}
 void initialize()
 {
 	default_constants();
-	chassis.odom_theta_flip(true);
+	chassis.odom_theta_flip(false); // TRUE for blue, FALSE for red
 	chassis.opcontrol_curve_buttons_toggle(false);
-	chassis.opcontrol_curve_default_set(10.0, 10.0);
+	chassis.opcontrol_curve_default_set(5.0, 5.0);
 
 	lb.set_brake_mode(MOTOR_BRAKE_HOLD);
 	lb_rotation.reset_position();
 	intake_power = 0;
 	intake_running = false;
 
+	ez::as::auton_selector.autons_add({{"Normal Negative", normal_n},
+																		 {"Normal Positive", normal_p},
+																		 {"Skills", skills}});
+	chassis.initialize();
+	ez::as::initialize();
+	colour_sensor.set_led_pwm(100);
+	pros::Task colour_rejection_task{[&]
+	{
+		while (true)
+		{
+			if (intake_power != 0)
+			{
+				Colour detected = detect_colour();
+				if (detected != Colour::NONE && detected != team_colour)
+				{
+					colour_rejection_active = true;
+					pros::delay(230);
+					intake.move_velocity(0);
+					pros::delay(100);
+					intake.move_velocity(intake_power);
+					colour_rejection_active = false;
+				}
+			}
+			pros::delay(50);
+		}
+	}};
+}
+void disabled() {}
+void competition_initialize() {}
+void autonomous()
+{
 	pros::Task intake_task{[&]
 	{
 		while (true)
@@ -60,19 +126,14 @@ void initialize()
 			if (!pros::competition::is_autonomous())
 				return;
 			if (is_intake_stalled(intake))
+			{
 				attempt_unjam();
+				pros::delay(100);
+			}
 			pros::delay(100);
 		}
 	}};
-	ez::as::auton_selector.autons_add({{"Normal Negative", normal_n},
-																		 {"Normal Positive", normal_p}});
-	chassis.initialize();
-	ez::as::initialize();
-}
-void disabled() {}
-void competition_initialize() {}
-void autonomous()
-{
+	colour_rejection_active = false;
 	chassis.pid_targets_reset();							 // Resets PID targets to 0
 	chassis.drive_imu_reset();								 // Reset gyro position to 0
 	chassis.drive_sensor_reset();							 // Reset drive sensors to 0
@@ -85,9 +146,6 @@ void ez_template_extras()
 	// Only run this when not connected to a competition switch
 	if (!pros::competition::is_connected())
 	{
-		// PID Tuner
-		// - after you find values that you're happy with, you'll have to set them in auton.cpp
-
 		// Enable / Disable PID Tuner
 		//  When enabled:
 		//  * use A and Y to increment / decrement the constants
@@ -95,7 +153,6 @@ void ez_template_extras()
 		if (master.get_digital_new_press(DIGITAL_X))
 			chassis.pid_tuner_toggle();
 
-		// Trigger the selected autonomous routine
 		if (master.get_digital(DIGITAL_B) && master.get_digital(DIGITAL_DOWN))
 		{
 			pros::motor_brake_mode_e_t preference = chassis.drive_brake_get();
@@ -103,11 +160,8 @@ void ez_template_extras()
 			chassis.drive_brake_set(preference);
 		}
 
-		// Allow PID Tuner to iterate
 		chassis.pid_tuner_iterate();
 	}
-
-	// Disable PID Tuner when connected to a comp switch
 	else
 	{
 		if (chassis.pid_tuner_enabled())
@@ -120,7 +174,7 @@ void opcontrol()
 	chassis.drive_brake_set(pros::E_MOTOR_BRAKE_COAST);
 	while (true)
 	{
-		ez_template_extras();
+		//ez_template_extras();h
 		chassis.opcontrol_arcade_standard(ez::SPLIT);
 
 		if (master.get_digital_new_press(DIGITAL_L2))
@@ -128,10 +182,8 @@ void opcontrol()
 		else if (master.get_digital_new_press(DIGITAL_R2))
 			intake_running = false;
 
-		if (intake_running)
-			intake_power = 200;
-		else
-			intake_power = 0;
+		intake_power = intake_running ? 200 : 0;
+
 		if (master.get_digital(DIGITAL_L1))
 			intake_power = -200;
 
@@ -147,13 +199,12 @@ void opcontrol()
 		}
 
 		if (master.get_digital(DIGITAL_RIGHT))
-			lb.move_velocity(100);
+			lb.move_velocity(150);
 		else if (master.get_digital(DIGITAL_LEFT))
-			lb.move_velocity(-100);
+			lb.move_velocity(-150);
 		else
 			lb.move_velocity(0);
-
-		intake.move_velocity(intake_power);
+		if (!colour_rejection_active) intake.move_velocity(intake_power);
 		pros::delay(ez::util::DELAY_TIME);
 	}
 }

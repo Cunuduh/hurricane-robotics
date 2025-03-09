@@ -16,3 +16,5 @@ inline std::atomic<int32_t> intake_power{0};
 inline bool intake_running = false;
 inline bool solenoid_on = false;
 inline bool doinker_on = false;
+inline bool colour_rejection_active = false;
+inline uint32_t last_rejection_time = 0;
