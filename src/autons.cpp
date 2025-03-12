@@ -6,6 +6,8 @@ void default_constants()
   chassis.pid_heading_constants_set(11.0, 0.0, 20.0); // Holds the robot straight while going forward without odom
   chassis.pid_turn_constants_set(3.0, 0.0, 20.0);
   chassis.pid_swing_constants_set(6.0, 0.0, 65.0);
+  chassis.pid_odom_angular_constants_set(6.5, 0.0, 52.5);    // Angular control for odom motions
+  chassis.pid_odom_boomerang_constants_set(5.8, 0.0, 32.5);  // Angular control for boomerang motions
 
   chassis.pid_turn_exit_condition_set(80_ms, 3_deg, 250_ms, 7_deg, 300_ms, 500_ms);
   chassis.pid_drive_exit_condition_set(80_ms, 1_in, 250_ms, 3_in, 500_ms, 500_ms);
@@ -190,88 +192,32 @@ void normal_n()
 void skills()
 {
   // MAKE SURE TO UNFLIP THETA
+  // ptp = point-to-point, straight line
+  // pp = pure pursuit, curved
+  // boomerang = curved, used for posing at a specific heading
+  // +y = down from audience view
+  //chassis.odom_xyt_set(-5.25_ft, 0_ft 0_deg);
+  chassis.odom_xyt_set(0_ft, 0_ft, 90_deg);
   activate_lb(320);
   intake.move_velocity(200);
   pros::delay(2000);
   intake.move_velocity(0);
 
-  chassis.pid_drive_set(1.25_ft, 127);
+  chassis.pid_odom_ptp_set({{2_ft, 0_ft}, rev, 127});
   chassis.pid_wait();
 
-  chassis.pid_turn_set(90, 48);
+  chassis.pid_odom_ptp_set({{2_ft, 2_ft}, fwd, 127});
   chassis.pid_wait();
 
-  chassis.pid_drive_set(-2.45_ft, 127);
-
-  pros::delay(500);
-  activate_sol(true);
+  chassis.pid_odom_ptp_set({{0_ft, 2_ft}, fwd, 127});
   chassis.pid_wait();
 
-  intake_power = 200;
-  intake.move_velocity(200);
-
-  chassis.pid_turn_set(0, 48);
+  chassis.pid_odom_ptp_set({{0_ft, 0_ft}, fwd, 127});
   chassis.pid_wait();
 
-  chassis.pid_drive_set(2_ft, 127);
+  chassis.pid_odom_set({{{1.5_ft, 1_ft}, fwd, 32},
+                        {{2.5_ft, 0_ft}, fwd, 32},
+                        {{2_ft, 2_ft, 90_deg}, fwd, 32}});
   chassis.pid_wait();
 
-  chassis.pid_turn_set(-90, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(2_ft, 127);
-  chassis.pid_wait();
-
-  chassis.pid_turn_set(-25, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(1.6_ft, 127);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(-1.6_ft, 127);
-  chassis.pid_wait();
-
-  chassis.pid_turn_set(180, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(3.25_ft, 127);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(-1.25_ft, 127);
-  chassis.pid_wait();
-
-  chassis.pid_turn_set(270, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(1.25_ft, 127);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(-1.25_ft, 127);
-  chassis.pid_wait();
-
-  chassis.pid_turn_set(40, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(-1.75_ft, 127);
-
-  activate_sol(false);
-  activate_intake(0);
-
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(1.75_ft, 127);
-  chassis.pid_wait();
-
-  chassis.pid_turn_set(270, 48);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(-5_ft, 127);
-  chassis.pid_wait();
-
-  chassis.pid_drive_set(-1.5_ft, 127);
-  pros::delay(500);
-  activate_sol(true);
-  chassis.pid_wait();
-
-  activate_intake(200);
 }

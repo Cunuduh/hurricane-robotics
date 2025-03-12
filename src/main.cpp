@@ -57,22 +57,18 @@ Colour detect_colour()
 	double hue = colour_sensor.get_hue();
 	if (colour_sensor.get_proximity() < 40)
 	{
-		master.print(1, 0, "None");
 		return Colour::NONE;
 	}
 	if ((hue >= 0.0 && hue <= 30.0) || (hue >= 330.0 && hue <= 359.999))
 	{
-		master.print(1, 0, "Red ");
 		return Colour::RED;
 	}
 	else if (hue >= 150.0 && hue <= 270.0)
 	{
-		master.print(1, 0, "Blue");
 		return Colour::BLUE;
 	}
 	else
 	{
-		master.print(1, 0, "None");
 		return Colour::NONE;
 	}
 }
@@ -104,14 +100,14 @@ void initialize()
 				if (detected != Colour::NONE && detected != team_colour)
 				{
 					colour_rejection_active = true;
-					pros::delay(230);
+					pros::delay(210);
 					intake.move_velocity(0);
-					pros::delay(100);
+					pros::delay(200);
 					intake.move_velocity(intake_power);
 					colour_rejection_active = false;
 				}
 			}
-			pros::delay(50);
+			pros::delay(30);
 		}
 	}};
 }
@@ -178,9 +174,7 @@ void opcontrol()
 		chassis.opcontrol_arcade_standard(ez::SPLIT);
 
 		if (master.get_digital_new_press(DIGITAL_L2))
-			intake_running = true;
-		else if (master.get_digital_new_press(DIGITAL_R2))
-			intake_running = false;
+			intake_running = !intake_running;
 
 		intake_power = intake_running ? 200 : 0;
 
