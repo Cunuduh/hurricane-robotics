@@ -71,10 +71,6 @@ using namespace okapi::literals;
 #ifdef __cplusplus
 extern "C" {
 #endif
-void activate_doinker(bool);
-void activate_lb(int = 0, int = 200);
-void activate_intake(int = 200);
-void activate_sol(bool);
 void autonomous(void);
 void initialize(void);
 void disabled(void);

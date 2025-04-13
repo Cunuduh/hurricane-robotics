@@ -6,72 +6,11 @@ ez::Drive chassis(
 	3.25,
 	400);
 
-double get_lb_angle()
-{
-	return lb_rotation.get_position() / 100.0;
-}
-void activate_doinker(bool value)
-{
-	doinker_on = value;
-	doinker.set_value(doinker_on);
-}
-void activate_intake(int rpm)
-{
-	intake_power = rpm;
-	intake.move_velocity(intake_power);
-}
-void activate_lb(int duration_ms, int velocity)
-{
-	lb.move_velocity(velocity);
-	pros::delay(duration_ms);
-	lb.move_velocity(0);
-}
+const double START_PICKUP_THRESHOLD = 16.0;   // Between START (0) and PICKUP (32)
+const double PICKUP_REACH_THRESHOLD = 61.0;   // Between PICKUP (32) and REACH (90)
+const double REACH_SCORE_THRESHOLD = 110.0;   // Between REACH (60) and SCORE (160)
+const double SCORE_END_THRESHOLD = 215.0;     // Between SCORE (160) and END (270)
 
-void activate_sol(bool value)
-{
-	solenoid_on = value;
-	solenoid.set_value(solenoid_on);
-}
-
-bool is_intake_stalled(const pros::MotorGroup &motors, int threshold = 60)
-{
-	return std::abs(motors.get_actual_velocity_all()[0]) < 10 &&
-				 std::abs(motors.get_target_velocity_all()[0]) > threshold;
-}
-
-void attempt_unjam()
-{
-	intake_conveyor.move_velocity(-200);
-	pros::delay(500);
-	intake_conveyor.move_velocity(intake_power);
-}
-enum class Colour
-{
-	RED,
-	BLUE,
-	NONE
-};
-Colour team_colour = Colour::BLUE;
-Colour detect_colour()
-{
-	double hue = colour_sensor.get_hue();
-	if (colour_sensor.get_proximity() < 40)
-	{
-		return Colour::NONE;
-	}
-	if ((hue >= 0.0 && hue <= 30.0) || (hue >= 330.0 && hue <= 359.999))
-	{
-		return Colour::RED;
-	}
-	else if (hue >= 150.0 && hue <= 270.0)
-	{
-		return Colour::BLUE;
-	}
-	else
-	{
-		return Colour::NONE;
-	}
-}
 void initialize()
 {
 	default_constants();
@@ -80,27 +19,37 @@ void initialize()
 	chassis.opcontrol_curve_default_set(5.0, 5.0);
 
 	lb.set_brake_mode(MOTOR_BRAKE_HOLD);
-	lb_rotation.reset_position();
+  lb_rotation.set_reversed(true);
+  set_lb_stage(LBStage::START);
 	intake_power = 0;
 	intake_running = false;
 
 	ez::as::auton_selector.autons_add({{"Normal Negative", normal_n},
 																		 {"Normal Positive", normal_p},
-																		 {"Skills", skills}});
+                                     {"Skills", skills}});
 	chassis.initialize();
 	ez::as::initialize();
 	colour_sensor.set_led_pwm(100);
+  pros::Task lb_task([] {
+    while (true)
+    {
+      move_lb(ez::util::clamp(lb_pid.compute(get_lb_angle()), 127, -127));
+      pros::delay(ez::util::DELAY_TIME);
+    }
+  });
 	pros::Task colour_rejection_task{[&]
 	{
 		while (true)
 		{
+			//if (!pros::competition::is_autonomous())
+			//	return;
 			if (intake_power != 0)
 			{
 				Colour detected = detect_colour();
 				if (detected != Colour::NONE && detected != team_colour)
 				{
 					colour_rejection_active = true;
-					pros::delay(210);
+					pros::delay(215);
 					intake.move_velocity(0);
 					pros::delay(200);
 					intake.move_velocity(intake_power);
@@ -121,7 +70,7 @@ void autonomous()
 		{
 			if (!pros::competition::is_autonomous())
 				return;
-			if (is_intake_stalled(intake))
+			if (get_lb_angle() > 40 && is_intake_stalled(intake))
 			{
 				attempt_unjam();
 				pros::delay(100);
@@ -130,75 +79,94 @@ void autonomous()
 		}
 	}};
 	colour_rejection_active = false;
-	chassis.pid_targets_reset();							 // Resets PID targets to 0
-	chassis.drive_imu_reset();								 // Reset gyro position to 0
-	chassis.drive_sensor_reset();							 // Reset drive sensors to 0
-	chassis.drive_brake_set(MOTOR_BRAKE_HOLD); // Set motors to hold.  This helps autonomous consistency
+	chassis.pid_targets_reset();
+	chassis.drive_imu_reset();
+	chassis.drive_sensor_reset();
+	chassis.drive_brake_set(MOTOR_BRAKE_HOLD);
 
-	ez::as::auton_selector.selected_auton_call(); // Calls selected auton from autonomous selector
-}
-void ez_template_extras()
-{
-	// Only run this when not connected to a competition switch
-	if (!pros::competition::is_connected())
-	{
-		// Enable / Disable PID Tuner
-		//  When enabled:
-		//  * use A and Y to increment / decrement the constants
-		//  * use the arrow keys to navigate the constants
-		if (master.get_digital_new_press(DIGITAL_X))
-			chassis.pid_tuner_toggle();
-
-		if (master.get_digital(DIGITAL_B) && master.get_digital(DIGITAL_DOWN))
-		{
-			pros::motor_brake_mode_e_t preference = chassis.drive_brake_get();
-			autonomous();
-			chassis.drive_brake_set(preference);
-		}
-
-		chassis.pid_tuner_iterate();
-	}
-	else
-	{
-		if (chassis.pid_tuner_enabled())
-			chassis.pid_tuner_disable();
-	}
+	ez::as::auton_selector.selected_auton_call();
 }
 
 void opcontrol()
 {
-	chassis.drive_brake_set(pros::E_MOTOR_BRAKE_COAST);
+  static LBStage current_lb_stage = LBStage::START;
+  set_lb_stage(current_lb_stage);
+	lb.set_brake_mode(MOTOR_BRAKE_HOLD);
+	chassis.drive_brake_set(MOTOR_BRAKE_COAST);
 	while (true)
 	{
-		//ez_template_extras();h
 		chassis.opcontrol_arcade_standard(ez::SPLIT);
 
 		if (master.get_digital_new_press(DIGITAL_L2))
 			intake_running = !intake_running;
 
-		intake_power = intake_running ? 200 : 0;
+		intake_power = intake_running ? 127 : 0;
 
 		if (master.get_digital(DIGITAL_L1))
-			intake_power = -200;
+			intake_power = -127;
 
 		if (master.get_digital_new_press(DIGITAL_R1))
 		{
-			solenoid_on = !solenoid_on;
-			solenoid.set_value(solenoid_on);
+			mogo_on = !mogo_on;
+			mogo.set_value(mogo_on);
 		}
 		if (master.get_digital_new_press(DIGITAL_A))
 		{
 			doinker_on = !doinker_on;
 			doinker.set_value(doinker_on);
 		}
+    if (master.get_digital_new_press(DIGITAL_X))
+    {
+      if (current_lb_stage == LBStage::PICKUP)
+        current_lb_stage = LBStage::SCORE;
+      else
+        current_lb_stage = LBStage::PICKUP;
+      set_lb_stage(current_lb_stage);
+    }
 
-		if (master.get_digital(DIGITAL_RIGHT))
-			lb.move_velocity(150);
-		else if (master.get_digital(DIGITAL_LEFT))
-			lb.move_velocity(-150);
-		else
-			lb.move_velocity(0);
-		if (!colour_rejection_active) intake.move_velocity(intake_power);
+    if (master.get_digital_new_press(DIGITAL_UP))
+    {
+      switch (current_lb_stage)
+      {
+        case LBStage::START:
+          current_lb_stage = LBStage::PICKUP;
+          break;
+        case LBStage::PICKUP:
+          current_lb_stage = LBStage::SCORE;
+          break;
+        case LBStage::REACH:
+          current_lb_stage = LBStage::SCORE;
+          break;
+        case LBStage::SCORE:
+          current_lb_stage = LBStage::END;
+          break;
+        case LBStage::END:
+          break;
+      }
+      set_lb_stage(current_lb_stage);
+    }
+    else if (master.get_digital_new_press(DIGITAL_DOWN))
+    {
+      switch (current_lb_stage)
+      {
+        case LBStage::START:
+          break;
+        case LBStage::PICKUP:
+          current_lb_stage = LBStage::START;
+          break;
+        case LBStage::REACH:
+          current_lb_stage = LBStage::PICKUP;
+          break;
+        case LBStage::SCORE:
+          current_lb_stage = LBStage::PICKUP;
+          break;
+        case LBStage::END:
+          current_lb_stage = LBStage::SCORE;
+          break;
+      }
+      set_lb_stage(current_lb_stage);
+    }
+		if (!colour_rejection_active) intake.move(intake_power);
 		pros::delay(ez::util::DELAY_TIME);
 	}
 }
