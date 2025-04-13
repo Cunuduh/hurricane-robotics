@@ -27,7 +27,7 @@ void activate_doinker(bool value)
   doinker.set_value(doinker_on);
 }
 
-void activate_intake(int rpm, int duration_ms)
+void activate_intake(int32_t rpm, uint32_t duration_ms)
 {
   intake_power = rpm;
   intake.move_velocity(intake_power);
@@ -37,14 +37,14 @@ void activate_intake(int rpm, int duration_ms)
   intake.move_velocity(0);
 }
 
-void activate_lb(int velocity, int duration_ms)
+void activate_lb(int32_t velocity, uint32_t duration_ms)
 {
   lb.move_velocity(velocity);
   pros::delay(duration_ms);
   lb.move_velocity(0);
 }
 
-void move_lb(int velocity)
+void move_lb(int32_t velocity)
 {
   lb.move(velocity);
 }
@@ -85,7 +85,7 @@ void lb_pid_wait()
   }
 }
 
-bool is_intake_stalled(const pros::MotorGroup &motors, int threshold)
+bool is_intake_stalled(const pros::MotorGroup &motors, int32_t threshold)
 {
   return std::abs(motors.get_actual_velocity_all()[0]) < 10 &&
          std::abs(motors.get_target_velocity_all()[0]) > threshold;
@@ -119,7 +119,7 @@ Colour detect_colour()
   }
 }
 
-bool wait_for_ring(int timeout_ms)
+bool wait_for_ring(uint32_t timeout_ms)
 {
   if (std::abs(lb_pid.target_get() - 32) > 10)
     return false;

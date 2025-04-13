@@ -1,4 +1,5 @@
 #include "main.h"
+
 ez::Drive chassis(
 	{6, -5, -4},
 	{-3, 2, 1},
@@ -33,7 +34,8 @@ void initialize()
   pros::Task lb_task([] {
     while (true)
     {
-      move_lb(ez::util::clamp(lb_pid.compute(get_lb_angle()), 127, -127));
+      // Cast the result of clamp (double) to int32_t for move_lb
+      move_lb(static_cast<int32_t>(ez::util::clamp(lb_pid.compute(get_lb_angle()), 127.0, -127.0)));
       pros::delay(ez::util::DELAY_TIME);
     }
   });
@@ -166,7 +168,7 @@ void opcontrol()
       }
       set_lb_stage(current_lb_stage);
     }
-		if (!colour_rejection_active) intake.move(intake_power);
+		if (!colour_rejection_active) intake.move(intake_power.load());
 		pros::delay(ez::util::DELAY_TIME);
 	}
 }
