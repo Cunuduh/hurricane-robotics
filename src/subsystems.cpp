@@ -1,25 +1,19 @@
 #include "main.h"
+#include "subsystems.hpp"
+#include "lady_brown.hpp"
 
 pros::Optical colour_sensor(19);
-pros::Rotation lb_rotation(11);
 pros::MotorGroup intake({8, -9}, pros::v5::MotorGears::green);
 pros::Motor intake_conveyor(8, pros::v5::MotorGears::green);
-pros::Motor lb(10, pros::v5::MotorGears::green);
 pros::adi::DigitalOut mogo('A');
 pros::adi::DigitalOut doinker('B');
+pros::adi::DigitalIn limit_switch('H');
 std::atomic<int32_t> intake_power{0};
-ez::PID lb_pid{1.5, 0.0, 0.3};
 
 bool intake_running = false;
 bool mogo_on = false;
 bool doinker_on = false;
-bool colour_rejection_active = false;
-uint32_t last_rejection_time = 0;
 Colour team_colour = Colour::BLUE;
-double get_lb_angle()
-{
-  return lb_rotation.get_position() / 100.0;
-}
 
 void activate_doinker(bool value)
 {
@@ -27,26 +21,14 @@ void activate_doinker(bool value)
   doinker.set_value(doinker_on);
 }
 
-void activate_intake(int32_t rpm, uint32_t duration_ms)
+void activate_intake(int32_t voltage, uint32_t duration_ms)
 {
-  intake_power = rpm;
-  intake.move_velocity(intake_power);
+  intake_power = voltage;
+  intake.move(intake_power);
   if (duration_ms == 0)
     return;
   pros::delay(duration_ms);
-  intake.move_velocity(0);
-}
-
-void activate_lb(int32_t velocity, uint32_t duration_ms)
-{
-  lb.move_velocity(velocity);
-  pros::delay(duration_ms);
-  lb.move_velocity(0);
-}
-
-void move_lb(int32_t velocity)
-{
-  lb.move(velocity);
+  intake.move(0);
 }
 
 void activate_mogo(bool value)
@@ -55,47 +37,10 @@ void activate_mogo(bool value)
   mogo.set_value(mogo_on);
 }
 
-void set_lb_stage(LBStage stage)
-{
-  switch (stage)
-  {
-    case LBStage::START:
-      lb_pid.target_set(0);
-      break;
-    case LBStage::PICKUP:
-      lb_pid.target_set(32);
-      break;
-    case LBStage::REACH:
-      lb_pid.target_set(60);
-      break;
-    case LBStage::SCORE:
-      lb_pid.target_set(160);
-      break;
-    case LBStage::END:
-      lb_pid.target_set(270);
-      break;
-  }
-}
-
-void lb_pid_wait()
-{
-  while (lb_pid.exit_condition(lb_rotation.get_angle() / 100.0) == ez::RUNNING)
-  {
-    pros::delay(10);
-  }
-}
-
 bool is_intake_stalled(const pros::MotorGroup &motors, int32_t threshold)
 {
   return std::abs(motors.get_actual_velocity_all()[0]) < 10 &&
          std::abs(motors.get_target_velocity_all()[0]) > threshold;
-}
-
-void attempt_unjam()
-{
-  intake_conveyor.move_velocity(-200);
-  pros::delay(500);
-  intake_conveyor.move_velocity(intake_power);
 }
 
 Colour detect_colour()
@@ -121,21 +66,26 @@ Colour detect_colour()
 
 bool wait_for_ring(uint32_t timeout_ms)
 {
-  if (std::abs(lb_pid.target_get() - 32) > 10)
+  if (std::abs(lady_brown.get_angle() - lady_brown.get_stage_angle(LBStage::PICKUP)) > 25.0)
     return false;
-    
-  uint32_t start_time = pros::millis();
-  
-  while (pros::millis() - start_time < timeout_ms)
+  auto mark = pros::millis();
+  while (!is_intake_stalled(intake, 50) && pros::millis() - mark < timeout_ms)
+    pros::delay(2);
+  return (pros::millis() - mark < timeout_ms);
+}
+
+void push_into_lb()
+{
+  if (!wait_for_ring()) return;
+  pros::delay(50);
+  intake.move(0);
+  pros::delay(10);
+  for (int i = 0; i < 4; i++)
   {
-    if (is_intake_stalled(intake, 50))
-  {
-      pros::delay(100);
-      return true;
-    }
-    
-    pros::delay(10);
+    intake_conveyor.move(127);
+    pros::delay(250);
+    intake_conveyor.move(0);
+    pros::delay(50);
   }
-  
-  return false;
+  intake_conveyor.move(intake_power);
 }
