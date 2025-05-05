@@ -27,17 +27,14 @@ void initialize()
                                     {"Red Positive", red_p},
                                     {"Blue Negative", blue_n},
                                     {"Blue Positive", blue_p},
-                                    {"Red SAWP", red_sawp},
-                                    {"Blue SAWP", blue_sawp},
-                                    {"Skills", skills},
-                                    {"Skills No Lady Brown", skills_no_lb}});
+                                    {"Skills", skills}});
 	chassis.initialize();
 	ez::as::initialize();
-  colour_sensor.set_integration_time(25);
+  colour_sensor.set_integration_time(10);
 	colour_sensor.set_led_pwm(100);
   
   start_lb_update_task();
-  start_colour_rejection_task();
+  //start_colour_rejection_task();
 }
 
 void disabled() {}
@@ -52,7 +49,7 @@ void autonomous()
 	chassis.drive_sensor_reset();
 	chassis.drive_brake_set(MOTOR_BRAKE_HOLD);
 
-	ez::as::auton_selector.selected_auton_call();
+  ez::as::auton_selector.selected_auton_call();
 }
 
 void opcontrol()
@@ -69,6 +66,12 @@ void opcontrol()
   {
     chassis.opcontrol_arcade_standard(ez::SPLIT);
 
+    if (ez::as::auton_selector.auton_page_current == 4 && master.get_digital_new_press(DIGITAL_R2) && master.get_digital_new_press(DIGITAL_B))
+    {
+      auto brake_preference = chassis.drive_brake_get();
+      autonomous();
+      chassis.drive_brake_set(brake_preference);
+    }
     if (master.get_digital_new_press(DIGITAL_L2))
       intake_running = !intake_running;
 
@@ -86,14 +89,6 @@ void opcontrol()
     {
       doinker_on = !doinker_on;
       doinker.set_value(doinker_on);
-    }
-    if (master.get_digital_new_press(DIGITAL_X))
-    {
-      if (current_lb_stage == LBStage::PICKUP)
-        current_lb_stage = LBStage::SCORE;
-      else
-        current_lb_stage = LBStage::PICKUP;
-      lady_brown.set_stage(current_lb_stage);
     }
 
     if (master.get_digital_new_press(DIGITAL_UP))

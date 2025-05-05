@@ -19,10 +19,12 @@ void start_colour_rejection_task() {
       }
       if (limit_switch.get_value())
       {
-        pros::Task::delay_until(&mark, 55);           // exactly 55 ms after switch
+        while(limit_switch.get_value() && (pros::millis() - mark < 100)) {
+          pros::Task::delay_until(&mark, 1);
+        }
         intake_conveyor.move(0);
-        pros::Task::delay_until(&mark, 200);          // exactly 200 ms after switch
-        intake_conveyor.move(notify_val);             // resume at saved speed
+        pros::Task::delay_until(&mark, 200);
+        intake_conveyor.move(notify_val);// resume at saved speed
       }
       // loops back, blocks again
     }

@@ -25,7 +25,7 @@ private:
   const double START_ANGLE = 0.0;
   const double PICKUP_ANGLE = 29.0;
   const double REACH_ANGLE = 75.0;
-  const double SCORE_ANGLE = 135.0;
+  const double SCORE_ANGLE = 150.0;
   const double END_ANGLE = 270.0;
 
 public:

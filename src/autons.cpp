@@ -17,79 +17,100 @@ void default_constants()
 }
 void negative()
 {
-  chassis.odom_xyt_set(-5.25_ft, 2.0_ft, -90_deg);
+  chassis.odom_xyt_set(-5.25_ft, 4.0_ft, -90_deg);
   chassis.pid_turn_behavior_set(shortest);
+  chassis.pid_odom_set(-1.0_ft, 80);
   chassis.pid_odom_set({
-    {{-2.25_ft, 2.0_ft}, rev, 80},
-    {{-2.0_ft, 2.0_ft}, rev, 55}
+    {{-2.0_ft, 2.0_ft}, rev, 110},
+    {{-1.75_ft, 1.75_ft}, rev, 55}
   });
   chassis.pid_wait_until_index(0);
   activate_mogo(true);
   activate_intake(127);
   chassis.pid_wait();
 
+  chassis.pid_odom_set(0.5_ft, 110);
+  chassis.pid_wait();
   chassis.pid_turn_set(0_deg, 110);
   chassis.pid_wait();
-  auto ring_pos = chassis.odom_x_direction_get() ? 3.5_ft : 4.5_ft; // RED unflipped, BLUE flipped
 
-  chassis.pid_odom_set(ring_pos - 2.0_ft, 110);
+  chassis.pid_odom_set(2.5_ft, 110);
   chassis.pid_wait();
-  chassis.pid_turn_set(90_deg, 110);
+  if (chassis.odom_x_direction_get()) // BLUE
+  {
+    chassis.pid_odom_set(-1.0_ft, 55);
+    chassis.pid_wait();
+    chassis.pid_turn_set(80_deg, 110);
+    chassis.pid_wait();
+  }
+  else // RED
+  {
+    chassis.pid_turn_set(97_deg, 110);
+    chassis.pid_wait();
+  }
+  chassis.pid_odom_set(-0.5_ft, 55);
   chassis.pid_wait();
   activate_doinker(true);
   pros::delay(750);
-  chassis.pid_odom_set({
-    {{-0.5_ft, ring_pos}, fwd, 110},
-    {{-2.0_ft, ring_pos}, rev, 110}
-  });
+  chassis.pid_odom_set(1.75_ft, 80);
   chassis.pid_wait();
-
+  chassis.pid_odom_set(-1.75_ft, 110);
+  chassis.pid_wait();
   chassis.pid_turn_set(135_deg, 110);
   chassis.pid_wait();
   activate_doinker(false);
   chassis.pid_turn_set(180_deg, 110);
   chassis.pid_wait();
-  chassis.pid_odom_set(2.0_ft, 55);
+  chassis.pid_odom_set(2.0_ft, 55); // get grabbed ring
   chassis.pid_wait();
-
   if (chassis.odom_x_direction_get()) // BLUE
   {
-    chassis.pid_odom_set({
-      {{-5.0_ft, 4.5_ft, 0_deg}, fwd, 110},
-      {{-5.0_ft, 5.5_ft}, fwd, 80},
-      {{-5.0_ft, 4.5_ft}, rev, 110}
-    });
-    chassis.pid_wait_until_index(0);
-    activate_doinker(true);
+    chassis.pid_odom_set({{-4.33_ft, 1.25_ft, 180_deg}, fwd, 110});
     chassis.pid_wait();
-    chassis.pid_turn_set(90_deg, 110);
-    chassis.pid_wait();
-    activate_doinker(false);
-    chassis.pid_turn_set(60_deg, 110);
-    chassis.pid_wait();
-    chassis.pid_odom_set(2.0_ft, 55);
   }
   else
   {
-    chassis.pid_odom_set({
-      {{-4.5_ft, 5.0_ft, -90_deg}, fwd, 110},
-      {{-5.5_ft, 5.0_ft}, fwd, 80},
-      {{-4.5_ft, 5.0_ft}, rev, 110}
-    });
-    chassis.pid_wait_until_index(0);
-    activate_doinker(true);
+    chassis.pid_odom_set({{-3.33_ft, 1.25_ft, 180_deg}, fwd, 110});
     chassis.pid_wait();
-    chassis.pid_turn_set(-180_deg, 110);
-    chassis.pid_wait();
-    activate_doinker(false);
-    chassis.pid_turn_set(-165_deg, 110);
-    chassis.pid_wait();
-    chassis.pid_odom_set(2.0_ft, 55);
   }
+  activate_doinker(true);
+  pros::delay(500);
+  chassis.pid_turn_set(135_deg, 110);
+  chassis.pid_wait();
+  activate_doinker(false);
+  chassis.pid_turn_set(180_deg, 110);
+  chassis.pid_wait();
+  chassis.pid_odom_set(1.5_ft, 80);
+  chassis.pid_wait();
 }
 void positive()
 {
-
+  chassis.odom_xyt_set(-5.25_ft, -2.0_ft, -90_deg); 
+  chassis.pid_turn_behavior_set(shortest);
+  chassis.pid_odom_set({
+    {{-2.0_ft, -2.0_ft}, rev, 80},
+    {{-1.5_ft, -2.0_ft}, rev, 55}
+  });
+  chassis.pid_wait_until_index(0);
+  activate_mogo(true);
+  activate_intake(127);
+  chassis.pid_wait();
+  pros::delay(1000);
+  chassis.pid_turn_set(-135_deg, 110);
+  chassis.pid_wait();
+  activate_mogo(false);
+  chassis.pid_odom_set({{-2.0_ft, -4.0_ft}, fwd, 110});
+  chassis.pid_wait();
+  activate_intake(0);
+  chassis.pid_turn_set(-90_deg, 110);
+  chassis.pid_wait();
+  chassis.pid_odom_set({
+    {{-0.5_ft, -4.0_ft}, rev, 110},
+    {{0.0_ft, -4.0_ft}, rev, 55}
+  });
+  chassis.pid_wait_until_index(0);
+  activate_mogo(true);
+  activate_intake(127, 1000);
 }
 void red_n()
 {
@@ -111,182 +132,13 @@ void blue_p()
   chassis.odom_theta_flip(true);
   positive();
 }
-void red_sawp() {}
-void blue_sawp() {}
 void skills()
 {
   // MAKE SURE TO UNFLIP THETA
   // ptp = point-to-point, straight line
   // pp = pure pursuit, curved
   // boomerang = curved, used for posing at a specific heading
-  chassis.odom_xyt_set(-5.25_ft, 0_ft, 90_deg);
-  chassis.pid_turn_behavior_set(shortest);
-  activate_intake(127, 1000);
-  chassis.pid_odom_set(1.0_ft, 110);
-  chassis.pid_wait();
-  chassis.pid_turn_set(180_deg, 110);
-  chassis.pid_wait();
-  chassis.pid_odom_set({
-    {{-4.0_ft, 2.0_ft}, rev, 110},
-    {{-4.0_ft, 2.25_ft}, rev, 55},
-  });
-
-  chassis.pid_wait_until_index(0);
-  activate_mogo(true);
-  activate_intake(127);
-  chassis.pid_wait();
-
-  chassis.pid_odom_set({
-    {{-2.0_ft, 2.0_ft}, fwd, 110},
-    {{0.0_ft, 3.75_ft}, fwd, 110},
-    {{2.0_ft, 4.0_ft}, fwd, 80},
-    {{2.75_ft, 4.5_ft}, fwd, 55},
-    {{0.0_ft, 3.75_ft}, fwd, 80}
-  });
-  chassis.pid_wait_until_index(2);
-  lady_brown.set_stage(LBStage::PICKUP);
-  lady_brown.wait_until_settled();
-  push_into_lb();
-  lady_brown.set_stage(LBStage::REACH);
-  chassis.pid_wait();
-
-  chassis.pid_turn_set(0_deg, 110);
-  chassis.pid_wait();
-
-  activate_intake(127);
-
-  chassis.pid_odom_set(1.5_ft, 55);
-  chassis.pid_wait();
-
-  lady_brown.set_stage(LBStage::SCORE);
-  lady_brown.wait_until_settled();
-
-  chassis.pid_odom_set(-1.5_ft, 110);
-  chassis.pid_wait();
-
-  lady_brown.set_stage(LBStage::START);
-
-  chassis.pid_turn_set({-2.0_ft, 4.0_ft}, fwd, 110);
-  chassis.pid_wait();
-
-  chassis.pid_odom_set({
-    {{-2.0_ft, 4.0_ft, -90_deg}, fwd, 110},
-    {{-4.0_ft, 4.0_ft}, fwd, 80},
-    {{-5.5_ft, 4.0_ft}, fwd, 30},
-    {{-3.5_ft, 5.5_ft}, fwd, 55},
-    {{-5.5_ft, 5.5_ft, 135_deg}, rev, 80}
-  });
-  chassis.pid_wait_until_index(4);
-  activate_mogo(false);
-  activate_intake(0);
-  chassis.pid_wait();
-  // PART 2
-  chassis.pid_odom_set({{-4.0_ft, 4.0_ft}, fwd, 110});
-  chassis.pid_wait();
-
-  chassis.pid_odom_set({
-    {{-4.25_ft, -1.75_ft}, rev, 110},
-    {{-4.25_ft, -2.0_ft}, rev, 55},
-  });
-  chassis.pid_wait_until_index(0);
-  activate_mogo(true);
-  activate_intake(127);
-  chassis.pid_wait();
-
-  chassis.pid_odom_set({
-    {{-2.0_ft, -2.0_ft}, fwd, 110},
-    {{0.0_ft, -3.75_ft}, fwd, 110},
-    {{2.0_ft, -4.0_ft}, fwd, 80},
-    {{2.75_ft, -4.5_ft}, fwd, 55},
-    {{0.0_ft, -3.75_ft}, fwd, 80},
-  });
-  chassis.pid_wait_until_index(2);
-  lady_brown.set_stage(LBStage::PICKUP);
-  lady_brown.wait_until_settled();
-  push_into_lb();
-  lady_brown.set_stage(LBStage::REACH);
-  chassis.pid_wait();
-  activate_intake(0);
-
-  chassis.pid_turn_set(180_deg, 110);
-
-  chassis.pid_odom_set(1.5_ft, 55);
-  chassis.pid_wait();
-
-  activate_intake(127);
-
-  lady_brown.set_stage(LBStage::SCORE);
-  lady_brown.wait_until_settled();
-
-  chassis.pid_odom_set(-1.5_ft, 110);
-  chassis.pid_wait();
-
-  lady_brown.set_stage(LBStage::START);
-
-  chassis.pid_turn_set({-2.0_ft, -4.0_ft}, fwd, 110);
-  chassis.pid_wait();
-
-  chassis.pid_odom_set({
-    {{-2.0_ft, -4.0_ft}, fwd, 110},
-    {{-4.0_ft, -4.0_ft}, fwd, 80},
-    {{-5.5_ft, -4.0_ft}, fwd, 30},
-    {{-3.5_ft, -5.5_ft}, fwd, 55},
-    {{-5.5_ft, -5.5_ft, 45_deg}, rev, 110}
-  });
-  chassis.pid_wait_until_index(4);
-  activate_mogo(false);
-  activate_intake(0);
-  chassis.pid_wait();
-  // PART 3
-  activate_intake(127);
-  chassis.pid_odom_set({{2.0_ft, -2.0_ft}, fwd, 110});
-  chassis.pid_wait();
-
-  lady_brown.set_stage(LBStage::PICKUP);
-  lady_brown.wait_until_settled();
-  push_into_lb();
-  lady_brown.set_stage(LBStage::REACH);
-
-  chassis.pid_odom_set({
-    {{4.0_ft, 0.0_ft}, rev, 110},
-    {{5.0_ft, 1.0_ft}, rev, 55},
-    {{4.0_ft, 0.0_ft}, fwd, 55},
-  });
-  chassis.pid_wait_until_index(0);
-  activate_mogo(true);
-  activate_intake(127);
-  chassis.pid_wait();
-
-  chassis.pid_turn_set(90_deg, 110);
-  chassis.pid_wait();
-
-  lady_brown.set_stage(LBStage::END);
-  lady_brown.wait_until_settled();
-  chassis.pid_odom_set(-1.5_ft, 110);
-  chassis.pid_wait();
-  lady_brown.set_stage(LBStage::START);
-  chassis.pid_odom_set({
-    {{2.0_ft, 2.0_ft}, fwd, 110},
-    {{-0.5_ft, -0.5_ft}, fwd, 80},
-    {{4.0_ft, 4.0_ft}, fwd, 110},
-    {{5.0_ft, 4.0_ft}, fwd, 55},
-    {{4.0_ft, 5.0_ft}, fwd, 55},
-    {{5.5_ft, 5.5_ft, -135_deg}, rev, 110},
-    {{4.0_ft, 0.0_ft}, fwd, 110},
-    {{5.0_ft, -2.0_ft}, fwd, 110},
-    {{5.75_ft, -5.75_ft}, fwd, 110}
-  });
-  chassis.pid_wait_until_index(5);
-  activate_mogo(false);
-  chassis.pid_wait();
-}
-void skills_no_lb()
-{
-  // MAKE SURE TO UNFLIP THETA
-  // ptp = point-to-point, straight line
-  // pp = pure pursuit, curved
-  // boomerang = curved, used for posing at a specific heading
-  chassis.odom_xyt_set(-5.25_ft, 0_ft, 90_deg);
+  chassis.odom_xyt_set(-5.167_ft, 0_ft, 90_deg);
   chassis.pid_turn_behavior_set(shortest);
   activate_intake(127, 1000);
   chassis.pid_odom_set(1.25_ft, 110);
@@ -311,20 +163,23 @@ void skills_no_lb()
   chassis.pid_turn_set(0_deg, 110);
   chassis.pid_wait();
   chassis.pid_odom_set({
-    {{0.0_ft, 5.25_ft}, fwd, 55},
+    {{0.0_ft, 5.5_ft}, fwd, 55},
     {{0.0_ft, 4.0_ft}, rev, 80}
   });
   chassis.pid_wait();
 
-  chassis.pid_turn_set({-2.0_ft, 4.0_ft}, fwd, 110);
-  chassis.pid_wait();
-
   chassis.pid_odom_set({
     {{-2.0_ft, 4.0_ft}, fwd, 110},
-    {{-4.0_ft, 4.0_ft}, fwd, 80},
-    {{-5.25_ft, 4.0_ft}, fwd, 30},
-    {{-3.75_ft, 5.25_ft}, fwd, 80},
-    {{-5.25_ft, 5.25_ft, 135_deg}, rev, 80}
+    {{-4.0_ft, 4.0_ft}, fwd, 55},
+    {{-6.0_ft, 4.0_ft}, fwd, 30},
+    {{-4.125_ft, 3.5_ft}, rev, 55},
+  });
+  chassis.pid_wait();
+  chassis.pid_turn_set(0_deg, 110);
+  chassis.pid_wait();
+  chassis.pid_odom_set({
+    {{-4.125_ft, 5.5_ft}, fwd, 55},
+    {{-5.25_ft, 5.25_ft, 135_deg}, rev, 70}
   });
   chassis.pid_wait();
   activate_mogo(false);
@@ -350,78 +205,91 @@ void skills_no_lb()
   chassis.pid_turn_set(180_deg, 110);
   chassis.pid_wait();
   chassis.pid_odom_set({
-    {{0.0_ft, -5.25_ft}, fwd, 55},
+    {{0.0_ft, -5.5_ft}, fwd, 55},
     {{0.0_ft, -4.0_ft}, rev, 80}
   });
   chassis.pid_wait();
 
-  chassis.pid_turn_set({-2.0_ft, -4.0_ft}, fwd, 110);
-  chassis.pid_wait();
-
   chassis.pid_odom_set({
     {{-2.0_ft, -4.0_ft}, fwd, 110},
-    {{-4.0_ft, -4.0_ft}, fwd, 80},
-    {{-5.25_ft, -4.0_ft}, fwd, 30},
-    {{-3.75_ft, -5.25_ft}, fwd, 80},
-    {{-5.25_ft, -5.25_ft, 45_deg}, rev, 110}
+    {{-4.0_ft, -4.0_ft}, fwd, 55},
+    {{-6.0_ft, -4.0_ft}, fwd, 30},
+    {{-4.125_ft, -3.5_ft}, rev, 55},
+  });
+  chassis.pid_wait();
+  chassis.pid_turn_set(180_deg, 110);
+  chassis.pid_wait();
+  chassis.pid_odom_set({
+    {{-4.125_ft, -5.5_ft}, fwd, 55},
+    {{-5.25_ft, -5.25_ft, 45_deg}, rev, 70}
   });
   chassis.pid_wait();
   activate_mogo(false);
-  activate_intake(0);
   // PART 3
-  activate_intake(127);
   chassis.pid_odom_set({
-    {{2.0_ft, -2.0_ft}, fwd, 110},
-    {{2.25_ft, -1.75_ft}, fwd, 55}
+    {{2.0_ft, -2.125_ft}, fwd, 110},
+    {{2.125_ft, -2.0_ft}, fwd, 80}
   });
   chassis.pid_wait();
-  pros::delay(50);
   activate_intake(0);
-  chassis.pid_odom_set({{4.0_ft, -1.0_ft}, fwd, 110});
+  chassis.pid_odom_set({{3.5_ft, -2.0_ft}, fwd, 80});
   chassis.pid_wait();
-  chassis.pid_turn_set(0_deg, 110);
+  chassis.pid_turn_set(0_deg, 80);
   chassis.pid_wait();
-  chassis.pid_odom_set(1.0_ft, 30);
+  chassis.pid_odom_set(3.0_ft, 55); // SHOVE THIRD MOGO TO THE SIDE
   chassis.pid_wait();
   chassis.pid_odom_set(-1.0_ft, 55);
   chassis.pid_wait();
   chassis.pid_turn_set(-90_deg, 110);
   chassis.pid_wait();
-  chassis.pid_odom_set({
-    {{4.0_ft, 0.0_ft}, rev, 80},
-    {{5.25_ft, 0.0_ft}, rev, 30}
-  });
+  chassis.pid_odom_set({{5.25_ft, 0.0_ft}, rev, 55});
   chassis.pid_wait();
 
-  activate_intake(127);
-  pros::delay(500);
+  activate_intake(127, 1000);
   chassis.pid_odom_set({{4.0_ft, 0.0_ft}, fwd, 110});
   chassis.pid_wait();
   chassis.pid_turn_set(180_deg, 110);
   chassis.pid_wait();
-  chassis.pid_odom_set({
-    {{4.0_ft, 1.0_ft}, rev, 110},
-    {{3.75_ft, 1.75_ft}, rev, 55}
-  });
-  chassis.pid_wait_until_index(0);
-  activate_mogo(true);
+  chassis.pid_odom_set(-1.25_ft, 80);
+  chassis.pid_wait_quick();
+  chassis.pid_odom_set(-0.5_ft, 55);
   chassis.pid_wait();
-
+  activate_mogo(true);
+  activate_intake(127);
+  pros::delay(50);
   chassis.pid_odom_set({
     {{2.0_ft, 2.0_ft}, fwd, 110},
-    {{-0.5_ft, -0.5_ft}, fwd, 80},
+    {{0.0_ft, 0.0_ft}, fwd, 80},
     {{2.0_ft, -2.0_ft}, fwd, 110},
-    {{2.0_ft, -4.0_ft}, fwd, 110},
-    {{4.0_ft, 0.0_ft}, fwd, 110},
-    {{2.0_ft, 4.0_ft}, fwd, 110},
-    {{4.0_ft, 4.0_ft}, fwd, 55},
-    {{5.0_ft, 4.0_ft}, fwd, 55},
-    {{5.25_ft, 5.25_ft, -135_deg}, rev, 110},
-    {{4.0_ft, 0.0_ft}, fwd, 110},
-    {{5.0_ft, -2.0_ft}, fwd, 110},
-    {{5.25_ft, -5.25_ft}, fwd, 110}
+    {{2.0_ft, -4.5_ft}, fwd, 55},
+    {{4.25_ft, -4.0_ft}, fwd, 80},
   });
-  chassis.pid_wait_until_index(8);
+  chassis.pid_wait();
+  chassis.pid_odom_set({
+    {{3.5_ft, 0.0_ft}, fwd, 127},
+  });
+  chassis.pid_wait_quick();
+  chassis.pid_odom_set({
+    {{2.0_ft, 4.0_ft}, fwd, 110},
+    {{4.0_ft, 3.875_ft}, fwd, 55},
+  });
+  chassis.pid_wait();
+  activate_doinker(true);
+  pros::delay(250);
+  chassis.pid_turn_set(0_deg, 110, ccw);
+  chassis.pid_wait_quick();
+  activate_intake(0);
+  chassis.pid_odom_set({{5.25_ft, 5.25_ft, -135_deg}, rev, 110});
+  chassis.pid_wait_quick();
+  activate_doinker(false);
   activate_mogo(false);
+  chassis.pid_odom_set({
+    {{3.5_ft, 0.0_ft}, fwd, 127},
+    {{5.0_ft, -2.0_ft}, fwd, 127},
+    {{5.25_ft, -5.25_ft}, fwd, 127}
+  });
+  chassis.pid_wait_quick();
+  lady_brown.set_stage(LBStage::END);
+  chassis.pid_odom_set({{1.0_ft, -1.0_ft}, rev, 127}); // HANG
   chassis.pid_wait();
 }
